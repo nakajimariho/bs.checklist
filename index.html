@@ -1,0 +1,2355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>放送オペレーションチェックリスト V15.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+        }
+        /* Placeholder for contenteditable elements */
+        [contenteditable]:empty:before {
+            content: attr(placeholder);
+            color: #a1a1aa; /* zinc-400 */
+            pointer-events: none;
+            display: block;
+        }
+        /* Active state for mode buttons */
+        .mode-button.active {
+            background-color: #2563eb; /* blue-600 */
+            color: white;
+        }
+        /* Active state for tab buttons */
+        .tab-button.active {
+            border-color: #2563eb; /* blue-600 */
+            color: #2563eb;
+            background-color: #dbeafe; /* blue-100 */
+        }
+        /* Modal backdrop transition */
+        .modal-backdrop {
+            transition: opacity 0.3s ease;
+        }
+        /* Hide file input - kept for programatic triggering */
+        #import-file-input { display: none; }
+        /* Hide spin buttons for number input */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+        }
+        input[type=number] { -moz-appearance: textfield; }
+        /* Calendar date transitions and states */
+        .calendar-date { transition: all 0.2s ease; }
+        .calendar-date.today {
+            background-color: #fef9c3; /* yellow-100 */
+            color: #b45309; /* amber-600 */
+            font-weight: bold;
+        }
+        .calendar-date.selected {
+            background-color: #2563eb; /* blue-600 */
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        /* Styles for rejected rows */
+        .row-rejected {
+            background-color: #f4f4f5 !important; /* zinc-100 */
+            color: #a1a1aa; /* zinc-400 */
+        }
+        .row-rejected > td > div[contenteditable] {
+            text-decoration: line-through;
+            color: #a1a1aa;
+        }
+
+        /* Loading Overlay Styles */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            display: none;
+        }
+        /* Styles for drag-and-drop */
+        .dragging {
+            opacity: 0.5;
+            background-color: #e0e7ff; /* indigo-100 */
+        }
+        .drag-over {
+            border-top: 2px solid #2563eb; /* blue-600 */
+        }
+        .drag-over-bottom {
+            border-bottom: 2px solid #2563eb; /* blue-600 */
+        }
+        /* Style for the sort handle icon */
+        .sort-handle {
+            cursor: move;
+            color: #9ca3af; /* gray-400 */
+            font-size: 1.25rem; /* text-xl */
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        /* Active state for copy target mode buttons */
+        .copy-target-mode-btn.active {
+            background-color: #2563eb; /* blue-600 */
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div id="app" class="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
+        
+        <div id="top-bar" class="flex justify-between items-center mb-6">
+            <h2 id="current-date-display" class="text-xl md:text-2xl font-bold text-slate-700"></h2>
+            <button id="open-calendar-btn" class="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                カレンダー
+            </button>
+        </div>
+
+        <div id="calendar-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+            <div id="calendar-container" class="bg-white rounded-xl shadow-xl p-4 md:p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+                <div id="calendar-header" class="flex items-center justify-between mb-4">
+                    <button id="prev-month-btn" class="p-2 rounded-full hover:bg-slate-100"><svg class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+                    <h2 id="calendar-month-year" class="text-xl font-bold text-slate-800"></h2>
+                    <button id="next-month-btn" class="p-2 rounded-full hover:bg-slate-100"><svg class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+                </div>
+                <div id="calendar-weekdays" class="grid grid-cols-7 gap-1 text-center text-sm font-semibold text-slate-500 mb-2">
+                    <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+                </div>
+                <div id="calendar-dates" class="grid grid-cols-7 gap-2"></div>
+            </div>
+        </div>
+
+        <div class="mb-4 flex justify-center items-center gap-4">
+            <div id="mode-tabs" class="inline-flex rounded-xl shadow-sm border border-slate-300">
+                <button data-mode="2k" class="mode-button py-3 px-8 font-semibold text-lg rounded-l-lg hover:bg-slate-200 focus:outline-none transition-colors">2K</button>
+                <button data-mode="4k" class="mode-button py-3 px-8 font-semibold text-lg rounded-r-lg border-l border-slate-300 hover:bg-slate-200 focus:outline-none transition-colors">4K</button>
+            </div>
+            <button id="copy-mode-btn" class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-300 font-semibold text-sm text-slate-600 hover:bg-slate-50 transition-colors" title="選択中の番組を反対のモードにコピーします">
+            </button>
+        </div>
+
+        <div id="program-selector-container" class="mb-6 flex items-center gap-4 bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+        </div>
+        
+        <div id="main-content" style="visibility: hidden;">
+            
+            <h1 id="event-title" contenteditable="true" class="text-3xl md:text-4xl font-bold text-slate-800 outline-none focus:bg-slate-200/60 rounded-lg -mx-3 px-3 py-2 mb-8" placeholder="番組タイトルを入力..."></h1>
+
+            <div id="timetable-container" class="bg-white rounded-xl shadow-md p-6 mb-8 border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800 mb-4">タイムテーブル</h2>
+                <div class="text-xs text-slate-500 grid grid-cols-12 gap-4 font-bold uppercase mb-2 tracking-wider">
+                    <div class="col-span-2">開始</div><div class="col-span-2">終了</div><div class="col-span-2">サブ</div><div class="col-span-5">備考</div><div class="col-span-1 text-right"></div>
+                </div>
+                <div id="timetable-rows" class="space-y-2"></div>
+                    <button id="add-timetable-row-btn" class="mt-4 w-full text-sm text-blue-600 hover:bg-blue-100 p-2 rounded-lg font-semibold flex items-center justify-center transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>行を追加</button>
+            </div>
+
+            <div id="main-tabs-container" class="mb-4">
+                <div id="main-tabs" class="flex flex-wrap border-b border-slate-300">
+                    <button data-tab="operation" class="tab-button text-lg py-3 px-6 font-semibold border-b-4 border-transparent hover:bg-slate-200/60 -mb-px transition-colors">オペレーション</button>
+                    <button data-tab="extension" class="tab-button text-lg py-3 px-6 font-semibold border-b-4 border-transparent hover:bg-slate-200/60 -mb-px transition-colors">延長指示</button>
+                    <button data-tab="forced" class="tab-button text-lg py-3 px-6 font-semibold border-b-4 border-transparent hover:bg-slate-200/60 -mb-px transition-colors">強制発効</button>
+                </div>
+            </div>
+
+            <div id="header-info" class="bg-white rounded-xl shadow-md p-6 mt-4 border border-slate-200">
+                <div id="event-details" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <div class="space-y-6">
+                        <h2 class="text-xl font-bold text-slate-800 mb-4 manual-detail-item">詳細</h2>
+                        <div class="manual-detail-item">
+                            <label class="text-sm font-medium text-slate-600" for="detail-step-minutes">延長段階 (手動)</label>
+                            <div class="flex items-baseline mt-1 gap-2"><input type="number" id="detail-step-minutes" class="block w-24 rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"><span class="text-slate-700">分 ×</span><input type="number" id="detail-step-count" class="block w-24 rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"><span class="text-slate-700">段階</span></div>
+                        </div>
+                        <div class="manual-detail-item">
+                            <label class="text-sm font-medium text-slate-600">早終了時刻</label>
+                            <div id="early-finish-times-container" class="space-y-2 mt-1"></div>
+                            <button id="add-early-finish-btn" class="mt-2 text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M10 5a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V6a1 1 0 011-1z" /></svg>時刻を追加</button>
+                        </div>
+                        <div id="auto-calc-container" style="display: none;">
+                            <h2 class="text-xl font-bold text-slate-800 mb-4">延長時間 自動計算</h2>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-1">
+                                <div><label class="text-xs text-slate-500" for="detail-max-extension">最大延長 (分)</label><input type="number" id="detail-max-extension" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"></div>
+                                <div><label class="text-xs text-slate-500" for="detail-link-column-start">リンク列 開始番号</label><input type="number" id="detail-link-column-start" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"></div>
+                                <div><label class="text-xs text-slate-500" for="detail-initial-extension">初回延長 (分)</label><input type="number" id="detail-initial-extension" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"></div>
+                                <div><label class="text-xs text-slate-500" for="detail-extension-increment">延長間隔 (分)</label><input type="number" id="detail-extension-increment" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500"></div>
+                            </div>
+                            <button id="reflect-extension-btn" class="mt-4 w-full px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 font-semibold shadow-sm transition-colors">自動計算を反映</button>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                                <button id="add-standard-finish-btn" class="px-3 py-2 bg-slate-200 text-slate-800 text-sm rounded-lg hover:bg-slate-300 font-semibold shadow-sm transition-colors" data-action="add-standard-finish">基準終了</button>
+                                <button id="add-early-finish-column-btn" class="px-3 py-2 bg-slate-200 text-slate-800 text-sm rounded-lg hover:bg-slate-300 font-semibold shadow-sm transition-colors" data-action="add-early-finish-column">早終了</button>
+                                <button id="add-b-program-btn" class="px-3 py-2 bg-slate-200 text-slate-800 text-sm rounded-lg hover:bg-slate-300 font-semibold shadow-sm transition-colors" data-action="add-b-program-decision">Bプロ決定</button>
+                            </div>
+                            <button id="delete-all-generated-extension-rows-btn" class="mt-4 w-full px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-semibold shadow-sm transition-colors">生成された行を全て削除</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-sm font-medium text-slate-600" for="detail-notes">備考・担当者</label>
+                        <textarea id="detail-notes" class="mt-1 block w-full flex-grow rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500" placeholder="担当者、注意事項など..."></textarea>
+                    </div>
+                    <div id="operation-checklist-section" class="flex flex-col manual-detail-item md:col-span-2">
+                        <h3 class="text-lg font-bold text-slate-800 mb-2 mt-6">オペレーションチェックリスト</h3>
+                        <div id="operation-checklist-items" class="space-y-2"> </div>
+                        <button id="add-operation-item-btn" data-action="add-op-item" class="mt-4 w-full text-sm text-blue-600 hover:bg-blue-100 p-2 rounded-lg font-semibold flex items-center justify-center transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                            項目を追加
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="table-container" class="mt-4 bg-white rounded-xl shadow-md overflow-x-auto border border-slate-200">
+                <table class="w-full text-sm text-left text-slate-600">
+                    <thead id="table-head"></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+
+            <div id="forced-enactment-container" class="hidden bg-white rounded-xl shadow-md p-6 mt-4 border border-slate-200">
+            </div>
+            
+            <div id="controls-container" class="mt-8 border-t border-slate-300 pt-6">
+                <div class="flex flex-wrap items-center gap-4">
+                    <button id="import-btn" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>インポート</button>
+                    <input type="file" id="import-file-input" accept=".json, .pdf" multiple>
+                    <button id="export-btn" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="8" y1="12" x2="16" y2="12"></line>
+                            <line x1="8" y1="16" x2="16" y2="16"></line>
+                        </svg>
+                        PDFとしてエクスポート
+                    </button>
+                    <button id="copy-data-btn" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-sm transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2-2H9a2 2 0 01-2-2V9z" /><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h6a2 2 0 00-2-2H5z" /></svg>
+                        この番組をコピー
+                    </button>
+                    <p id="import-status" class="text-sm text-slate-600 ml-4"></p>
+                    <button id="delete-program-btn" class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-sm transition-colors shadow-sm ml-auto"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>この番組を削除</button>
+                </div>
+                <div id="attached-pdfs-container" class="mt-4 pt-4 border-t border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-2">添付PDFファイル</h3>
+                    <div id="pdf-list" class="space-y-2">
+                        <p class="text-sm text-slate-500">PDFが添付されていません。</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        
+        <div id="loading">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p id="loading-text" class="mt-2 text-slate-600">データを読み込んでいます...</p>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">項目を削除</h3>
+            <p id="delete-modal-message" class="mt-2 text-sm text-slate-600">この項目を本当に削除しますか？この操作は元に戻せません。</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-delete-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors">削除</button>
+            </div>
+        </div>
+    </div>
+    <div id="import-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">データのインポート</h3>
+            <p class="mt-2 text-sm text-slate-600">現在選択中の番組データをファイルの内容で上書きしますか？この操作は元に戻せません。</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-import-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-import-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors">インポート実行</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-program-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">番組の削除</h3>
+            <p id="delete-program-modal-message" class="mt-2 text-sm text-slate-600">現在選択している番組のデータをすべて削除します。この操作は元に戻せません。</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-delete-program-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-delete-program-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors">削除実行</button>
+            </div>
+        </div>
+    </div>
+    <div id="add-program-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">新規番組の追加</h3>
+            <p class="mt-2 text-sm text-slate-600">新しい番組のタイトルを入力してください。</p>
+            <div class="mt-4">
+                <label for="new-program-title-input" class="sr-only">番組タイトル</label>
+                <input type="text" id="new-program-title-input" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500" placeholder="番組タイトル...">
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-add-program-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-add-program-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors">追加</button>
+            </div>
+        </div>
+    </div>
+    <div id="copy-data-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">番組のコピー</h3>
+            <p class="mt-2 text-sm text-slate-600">
+                <span id="copy-source-info" class="font-semibold"></span>
+                をコピーします。コピー先の日付とモードを選択してください。
+            </p>
+            <div class="mt-4">
+                <label for="copy-target-date" class="block text-sm font-medium text-slate-700">コピー先の日付</label>
+                <input type="date" id="copy-target-date" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-slate-700 mb-2">コピー先のモード</label>
+                <div id="copy-target-mode-selector" class="inline-flex rounded-lg shadow-sm border border-slate-300">
+                    <button data-mode="2k" class="copy-target-mode-btn py-2 px-6 font-semibold text-base rounded-l-md hover:bg-slate-200 focus:outline-none transition-colors">2K</button>
+                    <button data-mode="4k" class="copy-target-mode-btn py-2 px-6 font-semibold text-base rounded-r-md border-l border-slate-300 hover:bg-slate-200 focus:outline-none transition-colors">4K</button>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-copy-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-copy-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold transition-colors">コピー実行</button>
+            </div>
+        </div>
+    </div>
+    <div id="copy-mode-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">モード間コピーの確認</h3>
+            <p id="copy-mode-message" class="mt-2 text-sm text-slate-600"></p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-copy-mode-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-copy-mode-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors">コピー実行</button>
+            </div>
+        </div>
+    </div>
+    <div id="alert-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 id="alert-title" class="text-lg font-bold text-yellow-600">注意</h3>
+            <p id="alert-message" class="mt-2 text-sm text-slate-600"></p>
+            <div class="mt-6 flex justify-end">
+                <button id="alert-ok-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="forced-delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-bold mb-2">確認</h3>
+            <p>このスケジュールを本当に削除しますか？</p>
+            <div class="flex justify-end gap-4 mt-6">
+                <button data-action="cancel-delete" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 transition">キャンセル</button>
+                <button data-action="confirm-delete" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition">削除</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-generated-rows-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">生成された行を削除</h3>
+            <p class="mt-2 text-sm text-slate-600">自動生成された延長指示の行をすべて削除します。この操作は元に戻せません。よろしいですか？</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-delete-generated-rows-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button id="confirm-delete-generated-rows-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors">削除</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-all-schedules-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 modal-backdrop opacity-0 pointer-events-none">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md m-4 transform scale-95 transition-transform duration-300">
+            <h3 class="text-lg font-bold text-slate-900">全スケジュールを削除</h3>
+            <p class="mt-2 text-sm text-slate-600">作成されたすべてのスケジュールを削除します。この操作は元に戻せません。よろしいですか？</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button data-action="cancel-delete-all" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold transition-colors">キャンセル</button>
+                <button data-action="confirm-delete-all" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-colors">すべて削除</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // --- Constants & Utilities ---
+        const ICONS = {
+            Calendar: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-slate-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+            PlusCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-blue-600"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+            FileText: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>',
+            Sunset: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 10V2M4.93 10.93 4.22 11.64M14.31 21.69 12 19.36l-2.31 2.33M2 18h2M20 18h2M19.07 10.93l.71.71M12 22a8 8 0 0 0 8-8V8A8 8 0 0 0 4 8v6a8 8 0 0 0 8 8Z"></path></svg>',
+            ShieldCheck: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
+            Clock: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+            ListPlus: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>',
+            X: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+            Trash2: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+            CheckCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+            RotateCcw: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M3 2v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L3 12"/></svg>',
+            Copy: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
+            Layers: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>',
+            File: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
+            Eye: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
+        };
+
+        // --- State Variables (Forced Enactment App) ---
+        let newCmList = [];
+        let scheduleToDeleteId = null;
+        let countdownInterval = null;
+        let draggedItem = null; // Stores the currently dragged DOM element
+        let draggedOverItem = null; // Stores the DOM element currently being dragged over
+        
+        // --- Forced Enactment App UI & Logic ---
+        const parseTimeToSeconds = (timeStr) => {
+            if (typeof timeStr !== 'string') return NaN;
+            const parts = timeStr.split(':').map(Number);
+            if (parts.some(isNaN)) return NaN;
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            return NaN;
+        };
+
+        const formatSecondsToTime = (totalSeconds) => {
+            if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00:00';
+            const date = new Date(0);
+            date.setSeconds(totalSeconds);
+            return date.toISOString().substr(11, 8);
+        };
+        
+        const createForcedEnactmentAppHTML = () => `
+            <div class="max-w-5xl mx-auto font-sans">
+                <div class="flex justify-end mb-4">
+                    <div id="forced-app-current-time" class="text-sm font-semibold bg-white border border-slate-200 p-2 rounded-lg flex items-center gap-2 shadow-sm"></div>
+                </div>
+                <div class="mb-6 p-4 border border-slate-200 rounded-xl bg-slate-50" id="schedule-input-form">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">${ICONS.PlusCircle}新規スケジュール作成</h2>
+                    <div class="my-4">
+                        <label class="text-sm font-semibold text-slate-600 mb-1 flex items-center gap-1.5">${ICONS.FileText}タイトル</label>
+                        <input type="text" list="schedule-titles" id="new-schedule-title" value="延長なし" class="w-full p-2 border border-slate-300 rounded-lg h-10 focus:ring-blue-500 focus:border-blue-500">
+                        <datalist id="schedule-titles"><option value="延長なし"/><option value="マルチ早終了１"/><option value="マルチ早終了２"/><option value="マルチ早終了３"/><option value="最大"/></datalist>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                        <div><label class="text-sm font-semibold text-slate-600 mb-1 flex items-center gap-1.5">${ICONS.Sunset}番組終了時刻</label><input type="text" id="new-schedule-program-end" value="22:00:00" class="w-full p-2 border border-slate-300 rounded-lg font-mono h-10 focus:ring-blue-500 focus:border-blue-500"></div>
+                        <div><label class="text-sm font-semibold text-slate-600 mb-1 flex items-center gap-1.5">${ICONS.ShieldCheck}RTの壁</label><input type="text" id="new-schedule-rt-wall" value="22:00:00" class="w-full p-2 border border-slate-300 rounded-lg font-mono h-10 focus:ring-blue-500 focus:border-blue-500"></div>
+                        <div class="md:col-span-2"><label class="text-sm font-semibold text-slate-600 mb-1 flex items-center gap-1.5">${ICONS.Clock}編成締切時刻 (自動計算)</label><div id="new-schedule-deadline" class="p-2 border border-slate-200 bg-slate-100 rounded-lg font-mono text-slate-700 h-10 flex items-center">21:55:00</div></div>
+                    </div>
+                    <div class="mt-6 pt-6 border-t border-slate-200">
+                        <h3 class="text-md font-bold text-slate-700 mb-2">CMリスト</h3>
+                        <div id="new-cm-list-container" class="space-y-2 mb-4"><p class="text-sm text-slate-500">CMがありません。</p></div>
+                        <div class="flex items-end gap-2 p-2 bg-slate-100 rounded-lg">
+                            <input type="text" id="new-cm-name" value="CM01" placeholder="CM名" class="p-2 border border-slate-300 rounded-lg w-1/3 h-10 focus:ring-blue-500 focus:border-blue-500">
+                            <input type="text" id="new-cm-length" value="01:30" placeholder="CM尺 (MM:SS)" class="p-2 border border-slate-300 rounded-lg font-mono w-1/3 h-10 focus:ring-blue-500 focus:border-blue-500">
+                            <button data-action="add-cm" class="flex-1 bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 transition h-10 flex items-center justify-center gap-2">${ICONS.ListPlus}追加</button>
+                        </div>
+                    </div>
+                    <div class="mt-6"><button data-action="add-schedule" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition h-11 flex items-center justify-center shadow-sm">スケジュール作成</button></div>
+                    <p id="schedule-form-error" class="text-red-600 text-sm mt-2"></p>
+                </div>
+                <div class="mt-8 pt-6 border-t border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-slate-800">作成済みスケジュール</h2>
+                        <button data-action="delete-all-schedules" class="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-semibold text-sm transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                            全スケジュール削除
+                        </button>
+                    </div>
+                    <div id="schedule-cards-container" class="space-y-6"></div>
+                </div>
+            </div>`;
+        
+        const renderNewCmList = () => {
+            const container = document.getElementById('new-cm-list-container');
+            if (!container) return;
+            if (newCmList.length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-500">CMがありません。</p>';
+                return;
+            }
+            container.innerHTML = newCmList.map((cm, index) => `
+                <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-md">
+                    <span class="font-bold text-slate-800 flex-1">${cm.name}</span>
+                    <span class="font-mono text-slate-600">${cm.length}</span>
+                    <button data-action="remove-cm" data-index="${index}" class="text-slate-400 hover:text-red-500">${ICONS.X}</button>
+                </div>
+            `).join('');
+        };
+        
+        const createScheduleCardHTML = (schedule) => {
+            const isFinished = schedule.isFinished;
+            const deadlinePatterns = (() => {
+                if (!schedule.cms || schedule.cms.length === 0) return [];
+                const patterns = [];
+                for (let i = schedule.cms.length; i > 0; i--) {
+                    const cmsForPattern = schedule.cms.slice(0, i);
+                    const patternName = `${cmsForPattern[cmsForPattern.length - 1].name}まで`;
+                    let nextCmDeadlineSeconds = parseTimeToSeconds(schedule.programEnd);
+                    if (isNaN(nextCmDeadlineSeconds)) {
+                        patterns.push({ name: patternName, deadlines: cmsForPattern.map(cm => ({...cm, deadline: '計算不可' })) });
+                        continue;
+                    };
+                    const deadlines = [...cmsForPattern].reverse().map(cm => {
+                        const cmLengthSeconds = parseTimeToSeconds(cm.length);
+                        const currentCmDeadlineSeconds = nextCmDeadlineSeconds - (isNaN(cmLengthSeconds) ? 0 : cmLengthSeconds) - 15;
+                        nextCmDeadlineSeconds = currentCmDeadlineSeconds;
+                        return { ...cm, deadline: formatSecondsToTime(currentCmDeadlineSeconds) };
+                    }).reverse();
+                    patterns.push({ name: patternName, deadlines });
+                }
+                return patterns;
+            })();
+            
+            const currentScheduleInState = currentPageData.forcedSchedules.find(s => s.id === schedule.id);
+            const activePatternIndex = currentScheduleInState ? parseInt(currentScheduleInState.activePattern || '0', 10) : 0;
+
+            return `
+                <div id="schedule-card-${schedule.id}" draggable="true" data-id="${schedule.id}" tabindex="0" class="transition-all duration-300 p-4 rounded-xl shadow-md border ${isFinished ? 'border-slate-300 bg-slate-100' : 'border-slate-200 bg-white'}">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-start gap-2 flex-1">
+                            <span class="sort-handle mt-1">↕</span>
+                            <div class="flex-1">
+                                <h3 contenteditable="true" data-action="edit-schedule-title" data-id="${schedule.id}" class="text-xl font-bold ${isFinished ? 'text-slate-600' : 'text-slate-800'} outline-none focus:bg-slate-200/60 rounded-md -m-1 p-1">${schedule.title || '無題'}</h3>
+                                <p class="text-xs mt-1 ${isFinished ? 'text-slate-500' : 'text-slate-500'}">作成日時: ${new Date(schedule.createdAt).toLocaleString('ja-JP')}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 ml-4">
+                            <button data-action="duplicate-schedule" data-id="${schedule.id}" title="このスケジュールを複製" class="p-1 rounded-full transition-colors text-slate-400 hover:text-blue-600">${ICONS.Copy}</button>
+                            <button data-action="toggle-finish" data-id="${schedule.id}" class="p-1 rounded-full transition-colors ${isFinished ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-green-600'}">${isFinished ? ICONS.RotateCcw : ICONS.CheckCircle}</button>
+                            <button data-action="delete-schedule" data-id="${schedule.id}" class="text-slate-400 hover:text-red-500 transition">${ICONS.Trash2}</button>
+                        </div>
+                    </div>
+                    <div class="${isFinished ? 'opacity-50' : ''}">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div class="p-4 bg-blue-50 border-2 border-dashed border-blue-200 rounded-lg">
+                                <p class="text-sm font-semibold text-blue-700">RTの壁</p>
+                                <div contenteditable="true" data-action="edit-schedule-time" data-id="${schedule.id}" data-field="rtWall" class="text-3xl font-mono font-bold text-blue-800 my-1 outline-none focus:bg-blue-200/50 rounded-md -mx-1 px-1">${schedule.rtWall}</div>
+                                <p class="text-lg font-mono font-semibold" data-countdown-target="${schedule.rtWall}" data-color-base="text-blue-600" data-color-passed="text-blue-400">--:--:--</p>
+                            </div>
+                            <div class="p-4 rounded-lg bg-red-50 border-red-200 border-2 border-dashed" data-deadline-box-target="${schedule.scheduleDeadline}">
+                                <p class="text-sm font-semibold text-red-700">編成締切時刻</p>
+                                <div contenteditable="true" data-action="edit-schedule-time" data-id="${schedule.id}" data-field="scheduleDeadline" class="text-3xl font-mono font-bold text-red-800 my-1 outline-none focus:bg-red-200/50 rounded-md -mx-1 px-1">${schedule.scheduleDeadline}</div>
+                                <p class="text-lg font-mono font-semibold" data-countdown-target="${schedule.scheduleDeadline}" data-color-base="text-red-600" data-color-passed="text-red-400" data-color-critical="text-yellow-600">--:--:--</p>
+                            </div>
+                            <div class="p-4 bg-green-50 border-2 border-dashed border-green-200 rounded-lg">
+                                <p class="text-sm font-semibold text-green-700">番組終了時刻</p>
+                                <div contenteditable="true" data-action="edit-schedule-time" data-id="${schedule.id}" data-field="programEnd" class="text-3xl font-mono font-bold text-green-800 my-1 outline-none focus:bg-green-200/50 rounded-md -mx-1 px-1">${schedule.programEnd}</div>
+                                <p class="text-lg font-mono font-semibold" data-countdown-target="${schedule.programEnd}" data-color-base="text-green-600" data-color-passed="text-green-400">--:--:--</p>
+                            </div>
+                        </div>
+                        ${deadlinePatterns.length > 0 ? `<div class="mt-4 pt-4 border-t border-slate-200"><div class="flex items-center justify-between mb-3"><h4 class="text-md font-bold text-slate-700 flex items-center gap-2">${ICONS.Layers}CM消化パターン</h4><div class="flex bg-slate-200 rounded-lg p-1">${deadlinePatterns.map((p, i) => `<button data-action="set-pattern" data-schedule-id="${schedule.id}" data-pattern-index="${i}" class="px-3 py-1 text-sm font-semibold rounded-md transition-all ${activePatternIndex === i ? 'bg-white shadow text-blue-600' : 'bg-transparent text-slate-600 hover:bg-slate-100'}">${p.name}</button>`).join('')}</div></div><div class="space-y-1">${deadlinePatterns[activePatternIndex].deadlines.map(cm => `
+                                <div class="grid grid-cols-[auto,1fr,auto,auto] gap-3 items-center p-2 rounded-md" data-deadline-box-target="${cm.deadline}">
+                                    <span class="text-slate-400 text-lg">↕</span>
+                                    <span class="font-bold text-slate-800">${cm.name}</span>
+                                    <div class="text-center"><span class="font-mono text-lg font-semibold text-slate-900">${cm.deadline}</span></div>
+                                    <div class="text-right font-mono text-lg font-semibold" data-countdown-target="${cm.deadline}" data-color-base="text-slate-600" data-color-passed="text-slate-400" data-color-critical="text-yellow-600">--:--:--</div>
+                                </div>`).join('')}
+                        </div></div>` : ''}
+                    </div>
+                </div>`;
+        };
+        
+        const renderScheduleCards = () => {
+            const container = document.getElementById('schedule-cards-container');
+            if (!container) return;
+            if (!currentPageData || !currentPageData.forcedSchedules || currentPageData.forcedSchedules.length === 0) {
+                container.innerHTML = `<div class="text-center py-20 bg-white rounded-lg border-2 border-dashed border-slate-300"><p class="text-slate-500">スケジュールが作成されていません。</p><p class="text-slate-400 text-sm mt-2">上のフォームから新しいスケジュールを作成してください。</p></div>`;
+            } else {
+                container.innerHTML = currentPageData.forcedSchedules.map(createScheduleCardHTML).join('');
+            }
+        };
+
+        const updateScheduleCardDOM = (scheduleId) => {
+            const schedule = currentPageData.forcedSchedules.find(s => s.id === scheduleId);
+            if (!schedule) return;
+
+            const existingCardElement = document.getElementById(`schedule-card-${scheduleId}`);
+            if (existingCardElement) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = createScheduleCardHTML(schedule);
+                const newCardElement = tempDiv.firstElementChild;
+                if (newCardElement) {
+                    try {
+                        existingCardElement.replaceWith(newCardElement);
+                    } catch (e) {
+                        renderScheduleCards();
+                    }
+                }
+            } else {
+                renderScheduleCards();
+            }
+        };
+        
+        const handleForcedAppActions = async (e) => {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+            
+            const action = target.dataset.action;
+            const id = target.dataset.id;
+            const key = `page_data_${formatDate(selectedDate)}_${currentMode}`;
+
+            switch(action) {
+                case 'add-cm': {
+                    const nameInput = document.getElementById('new-cm-name');
+                    const lengthInput = document.getElementById('new-cm-length');
+                    const errorEl = document.getElementById('schedule-form-error');
+                    if (!nameInput.value.trim()) { errorEl.textContent = 'CM名を入力してください。'; return; }
+                    if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(lengthInput.value)) { errorEl.textContent = 'CM尺は「MM:SS」または「HH:MM:SS」形式で入力してください。'; return; }
+                    errorEl.textContent = '';
+                    newCmList.push({ name: nameInput.value.trim(), length: lengthInput.value });
+                    const nextNum = (parseInt(nameInput.value.replace(/[^0-9]/g, ''), 10) || 0) + 1;
+                    nameInput.value = `CM${String(nextNum).padStart(2, '0')}`;
+                    lengthInput.value = '01:30';
+                    renderNewCmList();
+                    break;
+                }
+                case 'remove-cm': {
+                    newCmList.splice(parseInt(target.dataset.index), 1);
+                    renderNewCmList();
+                    break;
+                }
+                case 'add-schedule': {
+                    const title = document.getElementById('new-schedule-title').value;
+                    const programEnd = document.getElementById('new-schedule-program-end').value;
+                    const rtWall = document.getElementById('new-schedule-rt-wall').value;
+                    const errorEl = document.getElementById('schedule-form-error');
+                    if (!title.trim() || !programEnd.trim() || !rtWall.trim() || newCmList.length === 0) {
+                        errorEl.textContent = 'すべての項目を入力し、CMを1つ以上追加してください。';
+                        return;
+                    }
+                    errorEl.textContent = '';
+                    const newSchedule = {
+                        id: `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                        title, programEnd, rtWall,
+                        createdAt: new Date().toISOString(),
+                        isFinished: false, activePattern: 0,
+                        scheduleDeadline: formatSecondsToTime(parseTimeToSeconds(programEnd) - 300),
+                        cms: [...newCmList]
+                    };
+                    if (!currentPageData) return;
+                    currentPageData.forcedSchedules.push(newSchedule);
+                    currentPageData.forcedSchedules.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    scheduleLocalStorageUpdate(key, dayPrograms);
+                    newCmList = [];
+                    renderNewCmList();
+                    document.getElementById('new-schedule-title').value = '延長なし';
+                    renderScheduleCards();
+                    break;
+                }
+                case 'duplicate-schedule': {
+                    const scheduleId = id;
+                    const originalScheduleIndex = currentPageData.forcedSchedules.findIndex(s => s.id === scheduleId);
+                    if (originalScheduleIndex === -1) break;
+
+                    const originalSchedule = currentPageData.forcedSchedules[originalScheduleIndex];
+
+                    const newSchedule = {
+                        ...JSON.parse(JSON.stringify(originalSchedule)), // Deep copy
+                        id: `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                        title: `${originalSchedule.title} (コピー)`,
+                        createdAt: new Date().toISOString(),
+                        isFinished: false,
+                    };
+
+                    currentPageData.forcedSchedules.splice(originalScheduleIndex + 1, 0, newSchedule);
+                    
+                    scheduleLocalStorageUpdate(key, dayPrograms);
+                    renderScheduleCards();
+                    
+                    const card = document.getElementById(`schedule-card-${newSchedule.id}`);
+                    if (card) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        card.classList.add('animate-pulse');
+                        setTimeout(() => card.classList.remove('animate-pulse'), 2000);
+                    }
+                    break;
+                }
+                case 'delete-schedule': {
+                    scheduleToDeleteId = id;
+                    showModal(document.getElementById('forced-delete-confirm-modal'));
+                    break;
+                }
+                case 'confirm-delete': {
+                    if (!scheduleToDeleteId) return;
+                    currentPageData.forcedSchedules = currentPageData.forcedSchedules.filter(s => s.id !== scheduleToDeleteId);
+                    scheduleToDeleteId = null;
+                    hideModal(document.getElementById('forced-delete-confirm-modal'));
+                    scheduleLocalStorageUpdate(key, dayPrograms);
+                    renderScheduleCards();
+                    break;
+                }
+                case 'cancel-delete': {
+                    scheduleToDeleteId = null;
+                    hideModal(document.getElementById('forced-delete-confirm-modal'));
+                    break;
+                }
+                case 'delete-all-schedules': {
+                    showModal(document.getElementById('delete-all-schedules-modal'));
+                    break;
+                }
+                case 'confirm-delete-all': {
+                    if (!currentPageData) return;
+                    currentPageData.forcedSchedules = [];
+                    scheduleLocalStorageUpdate(key, dayPrograms);
+                    renderScheduleCards();
+                    hideModal(document.getElementById('delete-all-schedules-modal'));
+                    break;
+                }
+                case 'cancel-delete-all': {
+                    hideModal(document.getElementById('delete-all-schedules-modal'));
+                    break;
+                }
+                case 'toggle-finish': {
+                    const schedule = currentPageData.forcedSchedules.find(s => s.id === id);
+                    if (schedule) {
+                        schedule.isFinished = !schedule.isFinished;
+                        scheduleLocalStorageUpdate(key, dayPrograms);
+                        updateScheduleCardDOM(id);
+                    }
+                    break;
+                }
+                case 'set-pattern': {
+                    const scheduleId = target.dataset.scheduleId;
+                    const patternIndex = parseInt(target.dataset.patternIndex, 10);
+                    const schedule = currentPageData.forcedSchedules.find(s => s.id === scheduleId);
+                    if (schedule) {
+                        schedule.activePattern = patternIndex;
+                        scheduleLocalStorageUpdate(key, dayPrograms);
+                        updateScheduleCardDOM(scheduleId);
+                    }
+                    break;
+                }
+            }
+        };
+        
+        const updateCountdowns = () => {
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const timeEl = document.getElementById('forced-app-current-time');
+            if (timeEl) {
+                timeEl.innerHTML = `${ICONS.Calendar}<span>${now.toLocaleDateString('ja-JP')}</span><span class="font-mono">${now.toLocaleTimeString('ja-JP')}</span>`;
+            }
+            document.querySelectorAll('[data-countdown-target]').forEach(el => {
+                const targetTimeStr = el.dataset.countdownTarget;
+                const targetTime = new Date(`${todayStr}T${targetTimeStr}`);
+                if (isNaN(targetTime.getTime())) { el.textContent = '無効'; return; }
+                const diff = targetTime - now;
+                const hasPassed = diff < 0;
+                const isCritical = !hasPassed && diff < 5 * 60 * 1000;
+                el.textContent = hasPassed ? '00:00:00' : formatSecondsToTime(diff / 1000);
+                el.classList.remove(el.dataset.colorBase, el.dataset.colorPassed, el.dataset.colorCritical);
+                let colorClass = el.dataset.colorBase;
+                if(hasPassed) colorClass = el.dataset.colorPassed;
+                else if (isCritical) colorClass = el.dataset.colorCritical;
+                el.classList.add(colorClass);
+                const box = el.closest('[data-deadline-box-target]');
+                if(box) {
+                    box.classList.remove('bg-yellow-100', 'border-yellow-400');
+                    if(isCritical && !hasPassed && !box.closest('.opacity-50')) {
+                        box.classList.add('bg-yellow-100', 'border-yellow-400');
+                    }
+                }
+            });
+        };
+
+        let forcedAppInitialized = false;
+        
+        const renderForcedApp = () => {
+            if (forcedAppInitialized) {
+                renderScheduleCards();
+                return;
+            }
+            const container = document.getElementById('forced-enactment-container');
+            container.innerHTML = createForcedEnactmentAppHTML();
+            container.addEventListener('click', handleForcedAppActions); // Use delegation for all actions within the app
+            
+            const cardsContainer = document.getElementById('schedule-cards-container');
+            if (cardsContainer) {
+                // Add focusout listener for editing titles and times
+                cardsContainer.addEventListener('focusout', (e) => {
+                    const target = e.target;
+                    const action = target.dataset.action;
+                    if (!action) return;
+
+                    const scheduleId = target.dataset.id;
+                    if (!scheduleId) return;
+
+                    const schedule = currentPageData.forcedSchedules.find(s => s.id === scheduleId);
+                    if (!schedule) return;
+
+                    const key = `page_data_${formatDate(selectedDate)}_${currentMode}`;
+
+                    if (action === 'edit-schedule-title') {
+                        const newTitle = sanitizeText(target.innerText.trim());
+                        if (schedule.title !== newTitle) {
+                            schedule.title = newTitle;
+                            scheduleLocalStorageUpdate(key, dayPrograms);
+                        }
+                    } else if (action === 'edit-schedule-time') {
+                        const field = target.dataset.field;
+                        if (!field) return;
+
+                        const newValue = sanitizeText(target.innerText.trim());
+                        const timeRegex = /^\d{1,2}:\d{2}:\d{2}$/;
+
+                        if (!timeRegex.test(newValue)) {
+                            showAlert('時刻は HH:MM:SS 形式で入力してください。', '入力エラー');
+                            target.innerText = schedule[field]; // Revert to old value
+                            return;
+                        }
+
+                        if (schedule[field] !== newValue) {
+                            schedule[field] = newValue;
+
+                            if (field === 'programEnd') {
+                                const endSeconds = parseTimeToSeconds(newValue);
+                                if (!isNaN(endSeconds)) {
+                                    schedule.scheduleDeadline = formatSecondsToTime(endSeconds - 300);
+                                } else {
+                                    schedule.scheduleDeadline = '計算不可';
+                                }
+                            }
+                            
+                            scheduleLocalStorageUpdate(key, dayPrograms);
+                            updateScheduleCardDOM(scheduleId);
+                        }
+                    }
+                });
+            }
+
+            document.getElementById('forced-delete-confirm-modal')?.addEventListener('click', handleForcedAppActions);
+            document.getElementById('delete-all-schedules-modal')?.addEventListener('click', handleForcedAppActions);
+            document.getElementById('new-schedule-program-end')?.addEventListener('input', () => {
+                const deadlineEl = document.getElementById('new-schedule-deadline');
+                if(!deadlineEl) return;
+                const endSeconds = parseTimeToSeconds(document.getElementById('new-schedule-program-end').value);
+                deadlineEl.textContent = !isNaN(endSeconds) ? formatSecondsToTime(endSeconds - 300) : '計算不可';
+            });
+            forcedAppInitialized = true;
+            renderScheduleCards();
+        };
+        
+        // --- Main App State Variables ---
+        let selectedDate = new Date();
+        let calendarDate = new Date();
+        let currentMode = '2k';
+        let currentMainTab = 'operation';
+        const userId = `local-anon-${crypto.randomUUID()}`;
+        
+        let dayPrograms = []; // Array of programs for the selected day
+        let currentProgramId = null; // ID of the currently active program
+        let currentPageData = null; // The object for the currently active program
+        
+        let itemToDelete = { type: null, index: null };
+        let dataToImport = null;
+        let updateTimeout;
+
+        // --- DOM Elements ---
+        const dom = {
+            openCalendarBtn: document.getElementById('open-calendar-btn'),
+            calendarModal: document.getElementById('calendar-modal'),
+            currentDateDisplay: document.getElementById('current-date-display'),
+            calendarContainer: document.getElementById('calendar-container'),
+            calendarMonthYear: document.getElementById('calendar-month-year'),
+            calendarDates: document.getElementById('calendar-dates'),
+            modeTabs: document.getElementById('mode-tabs'),
+            programSelectorContainer: document.getElementById('program-selector-container'),
+            mainContent: document.getElementById('main-content'),
+            timetableContainer: document.getElementById('timetable-container'),
+            headerInfo: document.getElementById('header-info'),
+            eventDetailsContainer: document.getElementById('event-details'),
+            tableContainer: document.getElementById('table-container'),
+            forcedEnactmentContainer: document.getElementById('forced-enactment-container'),
+            tableHead: document.getElementById('table-head'),
+            tableBody: document.getElementById('table-body'),
+            timetableRows: document.getElementById('timetable-rows'),
+            loadingIndicator: document.getElementById('loading'),
+            loadingText: document.getElementById('loading-text'),
+            deleteModal: document.getElementById('delete-modal'),
+            deleteModalMessage: document.getElementById('delete-modal-message'),
+            confirmDeleteBtn: document.getElementById('confirm-delete-btn'),
+            cancelDeleteBtn: document.getElementById('cancel-delete-btn'),
+            importConfirmModal: document.getElementById('import-confirm-modal'),
+            confirmImportBtn: document.getElementById('confirm-import-btn'),
+            cancelImportBtn: document.getElementById('cancel-import-btn'),
+            importBtn: document.getElementById('import-btn'),
+            exportBtn: document.getElementById('export-btn'),
+            importFileInput: document.getElementById('import-file-input'),
+            importStatus: document.getElementById('import-status'),
+            mainTabs: document.getElementById('main-tabs'),
+            deleteProgramBtn: document.getElementById('delete-program-btn'),
+            deleteProgramModal: document.getElementById('delete-program-modal'),
+            confirmDeleteProgramBtn: document.getElementById('confirm-delete-program-btn'),
+            cancelDeleteProgramBtn: document.getElementById('cancel-delete-program-btn'),
+            deleteProgramModalMessage: document.getElementById('delete-program-modal-message'),
+            addProgramModal: document.getElementById('add-program-modal'),
+            newProgramTitleInput: document.getElementById('new-program-title-input'),
+            confirmAddProgramBtn: document.getElementById('confirm-add-program-btn'),
+            cancelAddProgramBtn: document.getElementById('cancel-add-program-btn'),
+            copyDataBtn: document.getElementById('copy-data-btn'),
+            copyDataModal: document.getElementById('copy-data-modal'),
+            copySourceInfo: document.getElementById('copy-source-info'),
+            copyTargetDate: document.getElementById('copy-target-date'),
+            copyTargetModeSelector: document.getElementById('copy-target-mode-selector'),
+            confirmCopyBtn: document.getElementById('confirm-copy-btn'),
+            cancelCopyBtn: document.getElementById('cancel-copy-btn'),
+            copyModeBtn: document.getElementById('copy-mode-btn'),
+            copyModeModal: document.getElementById('copy-mode-modal'),
+            copyModeMessage: document.getElementById('copy-mode-message'),
+            confirmCopyModeBtn: document.getElementById('confirm-copy-mode-btn'),
+            cancelCopyModeBtn: document.getElementById('cancel-copy-mode-btn'),
+            alertModal: { modal: document.getElementById('alert-modal'), title: document.getElementById('alert-title'), message: document.getElementById('alert-message'), okBtn: document.getElementById('alert-ok-btn')},
+            attachedPdfsContainer: document.getElementById('attached-pdfs-container'),
+            pdfList: document.getElementById('pdf-list'),
+            deleteGeneratedRowsModal: document.getElementById('delete-generated-rows-modal'), 
+            confirmDeleteGeneratedRowsBtn: document.getElementById('confirm-delete-generated-rows-btn'),
+            cancelDeleteGeneratedRowsBtn: document.getElementById('cancel-delete-generated-rows-btn'),
+            opChecklistSection: document.getElementById('operation-checklist-section'),
+            opChecklistItems: document.getElementById('operation-checklist-items'),
+        };
+
+        // --- Main App Logic ---
+        const formatDate = (date, format = 'iso') => {
+            const d = new Date(date);
+            if (format === 'iso') {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            if (format === 'long') {
+                return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+            }
+            return d;
+        };
+
+        const sanitizeText = (text) => text ? text.replace(/<br\s*[\/]?>/gi, "\n").replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '') : '';
+        const showModal = (modalElement) => {
+            modalElement.classList.remove('opacity-0', 'pointer-events-none');
+            modalElement.querySelector('div').classList.remove('scale-95');
+        };
+        const hideModal = (modalElement) => {
+            modalElement.classList.add('opacity-0', 'pointer-events-none');
+            modalElement.querySelector('div').classList.add('scale-95');
+        };
+        const showAlert = (message, title = '注意') => {
+            dom.alertModal.title.textContent = title;
+            dom.alertModal.message.textContent = message;
+            showModal(dom.alertModal.modal);
+        };
+        
+        const createInitialStatus = () => ({ checked: false, user: null, timestamp: null, isRejected: false });
+
+        const createDefaultSubtitle = () => ({
+            maxExtension: 187,
+            stepMinutes: 15,
+            stepCount: 12,
+            earlyFinishTimes: ['22:23', '22:38'],
+            notes: `担当: \n`,
+            initialExtensionMinutes: 15,
+            extensionIncrementMinutes: 15,
+            linkColumnStartNumber: 130,
+            operationChecklistItems: [
+                { id: 'op_def_1', text: '[B〇〇]列を選択', status: createInitialStatus() },
+                { id: 'op_def_2', text: '〇サブレベルセット', status: createInitialStatus() },
+                { id: 'op_def_3', text: '4Kの代替列のT枠に「サイマルフラグ」が入っていることを確認', status: createInitialStatus() },
+                { id: 'op_def_4', text: 'SI生成モードを2に変更(延長する前に変更する)', status: createInitialStatus() },
+                { id: 'op_def_5', text: '当翌日のEPGの最終確認', status: createInitialStatus() },
+                { id: 'op_def_6', text: '業務アプリ記入処理(編成指示書に決定事項を記入)		', status: createInitialStatus() },
+                { id: 'op_def_7', text: '一般連絡票の起票(延長番組用、お断り送出用)	', status: createInitialStatus() },
+
+            ]
+        });					
+					
+        const createSampleHeaderData = (date, mode) => ({
+            title: ``,
+            subtitle: createDefaultSubtitle(),
+            timetable: [{ id: `tt_${Date.now()}`, start: '', end: '', sub: '', remarks: '' }]
+        });
+
+        const createChecklistData = {
+            extension: () => ({
+                headers: ['項目', '延長', '内容'],
+                rows: []
+            }),
+        };
+
+        const createSamplePageData = (date, mode) => ({
+            // programId is assigned when a new program is added to the day's list
+            headerData: createSampleHeaderData(date, mode),
+            checklists: {
+                extension: createChecklistData.extension()
+            },
+            forcedSchedules: [],
+            pdfAttachments: []
+        });
+
+        const renderCalendar = () => {
+            dom.calendarMonthYear.textContent = `${calendarDate.getFullYear()}年 ${calendarDate.getMonth() + 1}月`;
+            dom.calendarDates.innerHTML = '';
+            const year = calendarDate.getFullYear();
+            const month = calendarDate.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const lastDate = new Date(year, month + 1, 0).getDate();
+            const today = formatDate(new Date());
+
+            for (let i = 0; i < firstDay; i++) {
+                dom.calendarDates.insertAdjacentHTML('beforeend', '<div></div>');
+            }
+
+            for (let date = 1; date <= lastDate; date++) {
+                const dateObj = new Date(year, month, date);
+                const dateStr = formatDate(dateObj);
+                let classes = 'calendar-date h-10 w-10 flex items-center justify-center rounded-full cursor-pointer hover:bg-slate-200';
+                if (dateStr === today) classes += ' today';
+                if (dateStr === formatDate(selectedDate)) classes += ' selected';
+                dom.calendarDates.insertAdjacentHTML('beforeend', `<button class="${classes}" data-date="${dateStr}">${date}</button>`);
+            }
+        };
+
+        const showCalendar = (show) => {
+            if (show) {
+                renderCalendar();
+                showModal(dom.calendarModal);
+            } else {
+                hideModal(dom.calendarModal);
+            }
+        };
+
+        const handleCalendarClick = (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            if (button.id === 'prev-month-btn') {
+                calendarDate.setMonth(calendarDate.getMonth() - 1);
+                renderCalendar();
+            } else if (button.id === 'next-month-btn') {
+                calendarDate.setMonth(calendarDate.getMonth() + 1);
+                calendarDate.setHours(0,0,0,0);
+                renderCalendar();
+            } else if (button.dataset.date) {
+                const dateStr = button.dataset.date;
+                const parts = dateStr.split('-').map(Number);
+                selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                currentProgramId = null; // Reset program ID when changing date
+                showCalendar(false);
+                switchPage();
+            }
+        };
+        
+        const scheduleLocalStorageUpdate = (key, data) => {
+            console.log('scheduleLocalStorageUpdate: Initiated for key:', key);
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                if (!data) {
+                    console.warn('scheduleLocalStorageUpdate: data is null, skipping save.');
+                    return;
+                }
+                try {
+                    localStorage.setItem(key, JSON.stringify(data));
+                    console.log("Local Storage updated for:", key);
+                } catch (error) {
+                    console.error("Local Storage update failed:", error);
+                    showAlert("データをローカルストレージに保存できませんでした。ブラウザのストレージ容量を確認してください。", "保存エラー");
+                }
+            }, 500);
+        };
+
+        const showContent = (visible) => {
+            dom.loadingIndicator.style.display = visible ? 'none' : 'flex';
+        };
+
+        const updateCurrentDateDisplay = () => {
+            if (dom.currentDateDisplay) {
+                dom.currentDateDisplay.textContent = formatDate(selectedDate, 'long');
+            } else {
+                console.error("Element with id 'current-date-display' not found.");
+            }
+        };
+
+        const renderHeader = (headerData) => {
+            if(!headerData) return;
+            document.getElementById('event-title').innerText = headerData.title || '';
+            const details = headerData.subtitle || createDefaultSubtitle();
+            
+            document.getElementById('detail-max-extension').value = details.maxExtension ?? '';
+            document.getElementById('detail-step-minutes').value = details.stepMinutes ?? '';
+            document.getElementById('detail-step-count').value = details.stepCount ?? '';
+            document.getElementById('detail-notes').value = details.notes || '';
+            document.getElementById('detail-initial-extension').value = details.initialExtensionMinutes ?? '';
+            document.getElementById('detail-extension-increment').value = details.extensionIncrementMinutes ?? '';
+            document.getElementById('detail-link-column-start').value = details.linkColumnStartNumber ?? '';
+            
+            const earlyFinishContainer = document.getElementById('early-finish-times-container');
+            earlyFinishContainer.innerHTML = (details.earlyFinishTimes || []).map((time, index) =>
+                `<div class="flex items-center gap-2">
+                    <input type="text" data-ef-index="${index}" value="${time}" placeholder="HH:MM" class="early-finish-input block w-24 rounded-lg border-slate-300 shadow-sm p-2 bg-slate-50 focus:ring-blue-500 focus:border-blue-500">
+                    <button data-ef-index="${index}" class="delete-early-finish-btn text-slate-400 hover:text-red-500">${ICONS.X}</button>
+                </div>`
+            ).join('');
+
+            dom.timetableRows.innerHTML = (headerData.timetable || []).map((row, index) =>
+                `<div class="grid grid-cols-12 gap-4 items-center">
+                    <div contenteditable="true" data-tt-index="${index}" data-tt-field="start" class="col-span-2 bg-slate-50 rounded-lg p-2 outline-none focus:bg-blue-50 text-sm" placeholder="HH:MM:SS">${row.start}</div>
+                    <div contenteditable="true" data-tt-index="${index}" data-tt-field="end" class="col-span-2 bg-slate-50 rounded-lg p-2 outline-none focus:bg-blue-50 text-sm" placeholder="HH:MM:SS">${row.end}</div>
+                    <div contenteditable="true" data-tt-index="${index}" data-tt-field="sub" class="col-span-2 bg-slate-50 rounded-lg p-2 outline-none focus:bg-blue-50 text-sm" placeholder="サブ">${row.sub}</div>
+                    <div contenteditable="true" data-tt-index="${index}" data-tt-field="remarks" class="col-span-5 bg-slate-50 rounded-lg p-2 outline-none focus:bg-blue-50 text-sm" placeholder="備考">${row.remarks}</div>
+                    <button data-tt-index="${index}" class="delete-timetable-row-btn text-slate-400 hover:text-red-500 justify-self-center">${ICONS.Trash2}</button>
+                </div>`
+            ).join('');
+
+            const operationChecklistContainer = dom.opChecklistItems;
+            if (operationChecklistContainer) {
+                operationChecklistContainer.innerHTML = (details.operationChecklistItems || []).map((item, index) => {
+                    const checked = item.status ? item.status.checked : false;
+                    const itemClass = checked ? 'bg-green-50' : 'bg-slate-50';
+                    return `
+                        <div draggable="true" data-id="${item.id}" class="flex items-center gap-2 p-1 rounded-lg ${itemClass} shadow-sm transition-all duration-150">
+                            <span class="sort-handle">↕</span>
+                            <input type="checkbox" id="op-item-check-${item.id}" data-op-index="${index}" data-action="toggle-op-check" ${checked ? 'checked' : ''} class="w-5 h-5 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500 cursor-pointer">
+                            <div contenteditable="true" data-op-index="${index}" data-action="edit-op-text" placeholder="項目名" class="flex-1 outline-none focus:bg-blue-50 rounded-md -m-1 p-1 text-base text-slate-800">
+                                ${item.text || ''}
+                            </div>
+                            <button data-op-index="${index}" data-action="delete-op-item" class="text-slate-400 hover:text-red-500 p-1">${ICONS.Trash2}</button>
+                        </div>
+                    `;
+                }).join('');
+            }
+        };
+
+        const createTableRowHTML = (row, rowIndex) => {
+            const { status, cells = [] } = row;
+            const currentStatus = status || createInitialStatus();
+            const checked = currentStatus.checked;
+            
+            // ★ チェック状態に応じてクラスを決定（グレーアウトさせるクラスに変更）
+            let rowClass = checked ? 'row-rejected' : 'bg-white';
+
+            // ★ 操作セルを「終了ボタン」から「チェックボックス」に変更
+            let actionCellHtml = `<input type="checkbox" data-row-index="${rowIndex}" data-action="toggle-ext-check" class="w-5 h-5 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500 cursor-pointer" ${checked ? 'checked' : ''}>`;
+
+            return `<tr class="border-b border-slate-200 hover:bg-slate-50 ${rowClass}" draggable="true" data-id="${row.id}">
+                        <td class="p-4 align-top text-center"><span class="sort-handle">↕</span></td>
+                        <td class="w-4 p-4 align-top text-center">${actionCellHtml}</td>
+                        ${cells.map((cell,cellIndex)=>
+                            `<td class="px-6 py-4 align-top">
+                                <div contenteditable="true" data-row-index="${rowIndex}" data-cell-index="${cellIndex}" class="outline-none focus:bg-blue-50 rounded -m-1 p-1">${cell}</div>
+                            </td>`
+                        ).join('')}
+                        <td class="px-6 py-4 align-top">
+                            <button data-row-index="${rowIndex}" data-action="delete-row" class="delete-row-btn text-slate-400 hover:text-red-500">${ICONS.Trash2}</button>
+                        </td>
+                    </tr>`;
+        };
+
+        const renderTable = (sheetData) => {
+            if (!sheetData || !sheetData.headers) return;
+            
+            const mainHeaders = sheetData.headers;
+            dom.tableHead.innerHTML = `<tr class="bg-slate-50">
+                                            <th scope="col" class="p-4 w-12"><span class="sr-only">並び替え</span></th>
+                                            <th scope="col" class="p-4 w-16 text-center text-left text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>
+                                            ${mainHeaders.map(h => `<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">${h}</th>`).join('')}
+                                            <th scope="col" class="w-16"><span class="sr-only">Actions</span></th>
+                                        </tr>`;
+            
+            dom.tableBody.innerHTML = (sheetData.rows || []).map(createTableRowHTML).join('');
+            
+            const totalColumns = 1 + 1 + mainHeaders.length + 1; // アイコン列 + 操作列 + データ列 + 削除列
+            dom.tableBody.innerHTML += `<tr class="bg-slate-50">
+                                            <td colspan="${totalColumns}" class="text-center p-0">
+                                                <button id="add-row-btn" data-action="add-row" class="w-full text-sm text-blue-600 hover:bg-blue-100 p-2 font-semibold transition-colors">+ 行を追加</button>
+                                            </td>
+                                        </tr>`;
+        };
+        
+        const createRowEntry = (baseId, cellsContent, isGenerated = false) => ({
+            id: `${baseId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            cells: cellsContent,
+            status: createInitialStatus(),
+            isGenerated: isGenerated
+        });
+
+        const generateAndApplyExtensionRows = () => {
+            if (!currentPageData) return;
+            const details = currentPageData.headerData.subtitle;
+            const maxExtension = details.maxExtension;
+            const initialExtension = details.initialExtensionMinutes;
+            const increment = details.extensionIncrementMinutes;
+            const linkColumnStart = details.linkColumnStartNumber;
+            if ( (maxExtension === null || isNaN(maxExtension)) || (initialExtension === null || isNaN(initialExtension)) || (increment === null || isNaN(increment)) || (linkColumnStart === null || isNaN(linkColumnStart)) ) {
+                showAlert("自動計算に必要な全ての項目に有効な数値を入力してください。");
+                return;
+            }
+            if (!currentPageData.checklists.extension) {
+                currentPageData.checklists.extension = createChecklistData.extension();
+            }
+            let existingRows = JSON.parse(JSON.stringify(currentPageData.checklists.extension.rows));
+            let filteredRows = existingRows.filter(row => !row.id.startsWith('ext_main_') && !row.id.startsWith('ext_multi_step_'));
+            
+            const newGeneratedRows = [];
+            if (maxExtension > 0) {
+                newGeneratedRows.push(createRowEntry('ext_main', ['延長決定', `最大${maxExtension}分延長`, 'B120列選択、X102列選択'], true));
+            }
+            
+            if (initialExtension > 0 && increment > 0 && maxExtension >= initialExtension) {
+                const numSteps = Math.floor((maxExtension - initialExtension) / increment) + 1;
+                const circledNumbers = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫'];
+                for (let i = 0; i < numSteps; i++) {
+                    const stepNumber = i + 1;
+                    const extensionMinutes = initialExtension + (i * increment);
+                    const stepLabel = stepNumber <= circledNumbers.length ? circledNumbers[i] : `(${stepNumber})`;
+                    const linkColumnNumber = linkColumnStart + i;
+                    newGeneratedRows.push(createRowEntry(`ext_multi_step_${stepNumber}`, [`マルチ早終了${stepLabel}`, `${extensionMinutes}分延長`, `リンク列${linkColumnNumber}列(着地ダミー${linkColumnNumber})を選択`], true));
+                }
+            }
+            
+            currentPageData.checklists.extension.rows = filteredRows.concat(newGeneratedRows);
+            scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+            renderTable(currentPageData.checklists.extension);
+            dom.importStatus.textContent = '自動計算が反映されました。';
+            setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+        };
+
+        const deleteAllGeneratedExtensionRows = () => {
+            if (!currentPageData || !currentPageData.checklists.extension) return;
+
+            currentPageData.checklists.extension.rows = currentPageData.checklists.extension.rows.filter(row =>
+                row.id.startsWith('row_')
+            );
+            scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+            renderTable(currentPageData.checklists.extension);
+            dom.importStatus.textContent = '生成された行を全て削除しました。';
+            setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+            hideModal(dom.deleteGeneratedRowsModal);
+        };
+        
+        const renderContent = () => {
+            if (!currentPageData) return;
+            renderHeader(currentPageData.headerData);
+            renderPdfAttachment();
+            const activeTabButton = document.querySelector(`#main-tabs .tab-button[data-tab="${currentMainTab}"]`);
+            if (activeTabButton) {
+                handleTabClick({ target: activeTabButton });
+            } else {
+                handleTabClick({ target: document.querySelector('#main-tabs .tab-button[data-tab="operation"]') });
+            }
+        };
+        
+        const handleTabClick = (e) => {
+            const button = e.target.closest('button[data-tab]');
+            if (!button) return;
+
+            if(button.classList.contains('active') && currentMainTab === button.dataset.tab) {
+                if (currentMainTab === 'forced') {
+                    renderForcedApp();
+                }
+                return;
+            }
+            
+            currentMainTab = button.dataset.tab;
+            
+            document.querySelectorAll('#main-tabs .tab-button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === currentMainTab));
+            
+            const isForcedTab = currentMainTab === 'forced';
+            const isExtensionTab = currentMainTab === 'extension';
+            const isOperationTab = currentMainTab === 'operation';
+
+            dom.headerInfo.classList.toggle('hidden', isForcedTab);
+            dom.tableContainer.classList.toggle('hidden', isForcedTab || isOperationTab);
+            dom.forcedEnactmentContainer.classList.toggle('hidden', !isForcedTab);
+
+            const autoCalcContainer = document.getElementById('auto-calc-container');
+            const manualDetailItemsInLeftCol = document.querySelectorAll('#event-details > div:first-child > .manual-detail-item');
+            const opChecklistSection = document.getElementById('operation-checklist-section');
+            const notesSection = document.querySelector('#event-details > div:last-child');
+
+            if (isExtensionTab) {
+                autoCalcContainer.style.display = 'block';
+                manualDetailItemsInLeftCol.forEach(item => item.classList.add('hidden'));
+                if (opChecklistSection) opChecklistSection.classList.add('hidden');
+                if (notesSection) notesSection.classList.add('hidden');
+                if(currentPageData && currentPageData.checklists[currentMainTab]) {
+                    renderTable(currentPageData.checklists[currentMainTab]);
+                }
+            } else if (isOperationTab) {
+                autoCalcContainer.style.display = 'none';
+                manualDetailItemsInLeftCol.forEach(item => item.classList.remove('hidden'));
+                if (opChecklistSection) opChecklistSection.classList.remove('hidden');
+                if (notesSection) notesSection.classList.remove('hidden');
+                renderHeader(currentPageData.headerData);
+            } else if (isForcedTab) {
+                if (notesSection) notesSection.classList.add('hidden');
+                renderForcedApp();
+            }
+        };
+
+        const handleModeClick = (e) => {
+            const button = e.target.closest('button[data-mode]');
+            if (!button || button.dataset.mode === currentMode) return;
+
+            currentMode = button.dataset.mode;
+            currentProgramId = null; // Reset program selection when changing mode
+            document.querySelectorAll('#mode-tabs .mode-button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === currentMode));
+            
+            switchPage();
+        };
+
+        const handleDetailsChange = (e) => {
+            if (!currentPageData) return;
+            const subtitle = currentPageData.headerData.subtitle;
+            const target = e.target;
+            const value = (target.type === 'number') ? (isNaN(target.valueAsNumber) ? null : target.valueAsNumber) : target.value;
+
+            if (target.classList.contains('early-finish-input')) {
+                subtitle.earlyFinishTimes[parseInt(target.dataset.efIndex)] = value;
+            } else {
+                switch(target.id) {
+                    case 'detail-max-extension': subtitle.maxExtension = value; break;
+                    case 'detail-step-minutes': subtitle.stepMinutes = value; break;
+                    case 'detail-step-count': subtitle.stepCount = value; break;
+                    case 'detail-notes': subtitle.notes = value; break;
+                    case 'detail-initial-extension': subtitle.initialExtensionMinutes = value; break;
+                    case 'detail-extension-increment': subtitle.extensionIncrementMinutes = value; break;
+                    case 'detail-link-column-start': subtitle.linkColumnStartNumber = value; break;
+                }
+            }
+            scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+        };
+        
+        const handleTitleEdit = (e) => {
+            if(!currentPageData || e.target.id !== 'event-title') return;
+            const newTitle = sanitizeText(e.target.innerText);
+            
+            if (currentPageData.headerData.title !== newTitle) {
+                currentPageData.headerData.title = newTitle;
+                
+                // Also update the title in the main dayPrograms array
+                const programInDay = dayPrograms.find(p => p.programId === currentProgramId);
+                if (programInDay) {
+                    programInDay.headerData.title = newTitle;
+                }
+
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+
+                // Re-render the selector to show the new title
+                renderProgramSelector();
+            }
+        };
+
+        const handleHeaderClicks = (e) => {
+            const button = e.target.closest('button');
+            if(!button || !currentPageData) return;
+
+            if (button.id === 'reflect-extension-btn') {
+                generateAndApplyExtensionRows();
+                return;
+            } else if (button.id === 'delete-all-generated-extension-rows-btn') {
+                showModal(dom.deleteGeneratedRowsModal);
+                return;
+            }
+            
+            let needsFullHeaderRender = false;
+
+            if (button.id === 'add-timetable-row-btn') {
+                currentPageData.headerData.timetable.push({ id: `tt_${Date.now()}`, start: '', end: '', sub: '', remarks: '' });
+                needsFullHeaderRender = true;
+            } else if (button.classList.contains('delete-timetable-row-btn')) {
+                currentPageData.headerData.timetable.splice(parseInt(button.dataset.ttIndex), 1);
+                needsFullHeaderRender = true;
+            }
+            else if (button.id === 'add-early-finish-btn') {
+                if (!currentPageData.headerData.subtitle.earlyFinishTimes) currentPageData.headerData.subtitle.earlyFinishTimes = [];
+                currentPageData.headerData.subtitle.earlyFinishTimes.push('');
+                needsFullHeaderRender = true;
+            } else if (button.classList.contains('delete-early-finish-btn')) {
+                currentPageData.headerData.subtitle.earlyFinishTimes.splice(parseInt(button.dataset.efIndex), 1);
+                needsFullHeaderRender = true;
+            }
+
+            if (needsFullHeaderRender) {
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                renderHeader(currentPageData.headerData);
+            }
+        };
+
+        const handleTimetableEdit = (e) => {
+            const target = e.target;
+            if (!currentPageData || !target.hasAttribute('data-tt-index')) return;
+
+            const index = parseInt(target.dataset.ttIndex);
+            const field = target.dataset.ttField;
+            const newValue = sanitizeText(target.innerText);
+
+            if (currentPageData.headerData.timetable[index][field] !== newValue) {
+                currentPageData.headerData.timetable[index][field] = newValue;
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+            }
+        };
+
+        // Drag and Drop handlers for extension rows (tbody)
+        dom.tableBody.addEventListener('dragstart', (e) => {
+            const row = e.target.closest('tr[draggable="true"]');
+            if (row) {
+                draggedItem = row;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', row.dataset.id);
+                setTimeout(() => {
+                    row.classList.add('dragging');
+                    row.style.visibility = 'hidden';	
+                }, 0);	
+            }
+        });
+
+        dom.tableBody.addEventListener('dragover', (e) => {
+            e.preventDefault();	
+            e.dataTransfer.dropEffect = 'move';	
+
+            const targetRow = e.target.closest('tr[draggable="true"]');
+            if (targetRow && draggedItem && targetRow !== draggedItem) {
+                if (draggedOverItem && draggedOverItem !== targetRow) {
+                    draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                }
+                draggedOverItem = targetRow;
+
+                const rect = targetRow.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                if (offsetY < rect.height / 2) {
+                    targetRow.classList.add('drag-over');
+                    targetRow.classList.remove('drag-over-bottom');
+                } else {
+                    targetRow.classList.add('drag-over-bottom');
+                    targetRow.classList.remove('drag-over');
+                }
+            }
+        });
+
+        dom.tableBody.addEventListener('dragleave', (e) => {
+            if (draggedOverItem) {
+                draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                draggedOverItem = null;
+            }
+        });
+
+        dom.tableBody.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedItem && draggedOverItem && draggedItem !== draggedOverItem) {
+                const draggedId = draggedItem.dataset.id;
+                const targetId = draggedOverItem.dataset.id;
+                const currentRows = currentPageData.checklists.extension.rows;
+                
+                const fromIndex = currentRows.findIndex(row => row.id === draggedId);
+                let toIndex = currentRows.findIndex(row => row.id === targetId);
+
+                if (fromIndex === -1 || toIndex === -1) return;
+
+                const rect = draggedOverItem.getBoundingClientRect();
+                if ((e.clientY - rect.top) > (rect.height / 2)) {
+                    toIndex++;	
+                }
+
+                const [movedRow] = currentRows.splice(fromIndex, 1);
+                currentRows.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, movedRow);
+                
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                renderTable(currentPageData.checklists.extension);
+            }
+        });
+
+        dom.tableBody.addEventListener('dragend', (e) => {
+            if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+                draggedItem.style.visibility = '';
+            }
+            if (draggedOverItem) {
+                draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+            }
+            draggedItem = null;
+            draggedOverItem = null;
+        });
+
+
+        // Drag and Drop handlers for forced schedules (schedule-cards-container)
+        dom.forcedEnactmentContainer.addEventListener('dragstart', (e) => {
+            const card = e.target.closest('[draggable="true"]');
+            if (card) {
+                draggedItem = card;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', card.dataset.id);
+                setTimeout(() => {	
+                    card.classList.add('dragging');
+                    card.style.visibility = 'hidden';
+                }, 0);
+            }
+        });
+
+        dom.forcedEnactmentContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const targetCard = e.target.closest('[draggable="true"]');
+            if (targetCard && draggedItem && targetCard !== draggedItem) {
+                if (draggedOverItem && draggedOverItem !== targetCard) {
+                    draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                }
+                draggedOverItem = targetCard;
+
+                const rect = targetCard.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                if (offsetY < rect.height / 2) {
+                    targetCard.classList.add('drag-over');
+                    targetCard.classList.remove('drag-over-bottom');
+                } else {
+                    targetCard.classList.add('drag-over-bottom');
+                    targetCard.classList.remove('drag-over');
+                }
+            }
+        });
+
+        dom.forcedEnactmentContainer.addEventListener('dragleave', (e) => {
+            if (draggedOverItem) {
+                draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                draggedOverItem = null;
+            }
+        });
+
+        dom.forcedEnactmentContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedItem && draggedOverItem && draggedItem !== draggedOverItem) {
+                const draggedId = draggedItem.dataset.id;
+                const targetId = draggedOverItem.dataset.id;
+                const currentSchedules = currentPageData.forcedSchedules;
+                
+                const fromIndex = currentSchedules.findIndex(schedule => schedule.id === draggedId);
+                let toIndex = currentSchedules.findIndex(schedule => schedule.id === targetId);
+                
+                if (fromIndex === -1 || toIndex === -1) return;
+
+                const rect = draggedOverItem.getBoundingClientRect();
+                if ((e.clientY - rect.top) > (rect.height / 2)) {
+                    toIndex++;
+                }
+                
+                const [movedSchedule] = currentSchedules.splice(fromIndex, 1);
+                currentSchedules.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, movedSchedule);
+                
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                renderScheduleCards();
+            }
+        });
+
+        dom.forcedEnactmentContainer.addEventListener('dragend', (e) => {
+            if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+                draggedItem.style.visibility = '';
+            }
+            if (draggedOverItem) {
+                draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+            }
+            draggedItem = null;
+            draggedOverItem = null;
+        });
+
+
+		const handleExtensionTableInteraction = (e) => {
+            const target = e.target;
+            if (!currentPageData || !currentPageData.checklists.extension) return;
+
+            const checklist = currentPageData.checklists.extension;
+            const actionTarget = target.closest('[data-action]');
+            const key = `page_data_${formatDate(selectedDate)}_${currentMode}`;
+
+            if (e.type === 'focusout' && target.hasAttribute('data-cell-index')) {
+                const rowIndex = parseInt(target.dataset.rowIndex);
+                const cellIndex = parseInt(target.dataset.cellIndex);
+                if (checklist.rows[rowIndex]) {
+                    const newValue = sanitizeText(target.innerText);
+                    if (checklist.rows[rowIndex].cells[cellIndex] !== newValue) {
+                        checklist.rows[rowIndex].cells[cellIndex] = newValue;
+                        scheduleLocalStorageUpdate(key, dayPrograms);
+                    }
+                }
+                return;
+            }
+
+            if (actionTarget) {
+                const action = actionTarget.dataset.action;
+                
+                switch (action) {
+                    case 'toggle-ext-check': {
+                        const rowIndex = parseInt(actionTarget.dataset.rowIndex);
+                        if (isNaN(rowIndex) || !checklist.rows[rowIndex]) break;
+
+                        const row = checklist.rows[rowIndex];
+                        if (!row.status) row.status = createInitialStatus();
+
+                        // Update status based on checkbox state
+                        row.status.checked = actionTarget.checked;
+                        row.status.user = actionTarget.checked ? userId : null;
+                        row.status.timestamp = actionTarget.checked ? new Date().toISOString() : null;
+
+                        renderTable(checklist); // Re-render the table to show the change
+                        scheduleLocalStorageUpdate(key, dayPrograms);
+                        break;
+                    }
+
+                    case 'delete-row': {
+                        const rowIndex = parseInt(actionTarget.dataset.rowIndex);
+                        itemToDelete = { type: 'table_row', index: rowIndex };
+                        dom.deleteModalMessage.textContent = 'この行を本当に削除しますか？この操作は元に戻せません。';
+                        showModal(dom.deleteModal);
+                        break;
+                    }
+                    case 'add-row':
+                    case 'add-standard-finish':
+                    case 'add-early-finish-column':
+                    case 'add-b-program-decision': {
+                        const mainHeaders = checklist.headers;
+                        let newRow;
+                        if (action === 'add-row') {
+                            newRow = createRowEntry('row', Array(mainHeaders.length).fill(''), false);
+                        } else if (action === 'add-standard-finish') {
+                            newRow = createRowEntry('ext_prep_standard', ['基準終了', '', 'B101列選択'], true);
+                        } else if (action === 'add-early-finish-column') {
+                            newRow = createRowEntry('ext_prep_early', ['早終了', '', 'B110列選択、B111列選択'], true);
+                        } else {
+                            newRow = createRowEntry('ext_prep_bpro', ['Bプロ決定', '', 'B190列選択'], true);
+                        }
+                        checklist.rows.push(newRow);
+
+                        scheduleLocalStorageUpdate(key, dayPrograms);
+                        renderTable(checklist);
+                        break;
+                    }
+                }
+            }
+        };
+
+        const handleOperationChecklistInteraction = (e) => {
+            const target = e.target;
+            if (!currentPageData || !currentPageData.headerData?.subtitle?.operationChecklistItems) return;
+
+            const operationChecklist = currentPageData.headerData.subtitle.operationChecklistItems;
+            const actionTarget = target.closest('[data-action]');
+            let needsDataUpdate = false;
+
+            if (e.type === 'focusout' && target.dataset.action === 'edit-op-text') {
+                const opIndex = parseInt(target.dataset.opIndex);
+                if (isNaN(opIndex) || !operationChecklist[opIndex]) return;
+
+                const newValue = sanitizeText(target.innerText);
+                if (operationChecklist[opIndex].text !== newValue) {
+                    operationChecklist[opIndex].text = newValue;
+                    needsDataUpdate = true;
+                }
+            }
+            else if (e.type === 'click' && actionTarget) {
+                const action = actionTarget.dataset.action;
+                const opIndex = parseInt(actionTarget.dataset.opIndex);
+
+                switch (action) {
+                    case 'add-op-item':
+                        operationChecklist.push({
+                            id: `op_item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                            text: '',
+                            status: createInitialStatus()
+                        });
+                        needsDataUpdate = true;
+                        break;
+                    case 'delete-op-item':
+                        if (isNaN(opIndex)) return;
+                        itemToDelete = { type: 'op_item', index: opIndex };
+                        dom.deleteModalMessage.textContent = 'このチェックリスト項目を本当に削除しますか？この操作は元に戻せません。';
+                        showModal(dom.deleteModal);
+                        break;
+                }
+            }
+            else if (e.type === 'change' && target.dataset.action === 'toggle-op-check') {
+                const opIndex = parseInt(target.dataset.opIndex);
+                if (isNaN(opIndex) || !operationChecklist[opIndex]) return;
+
+                const item = operationChecklist[opIndex];
+                item.status = item.status || createInitialStatus();
+                item.status.checked = target.checked;
+                item.status.user = target.checked ? userId : null;
+                item.status.timestamp = target.checked ? new Date().toISOString() : null;
+                needsDataUpdate = true;
+            }
+
+            if (needsDataUpdate) {
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                renderHeader(currentPageData.headerData);
+            }
+        };
+
+        const handleExportPdf = () => {
+            if (!currentPageData) { showAlert('エクスポート対象のデータがありません。', 'PDFエクスポートエラー'); return; }
+            
+            const element = document.getElementById('app');
+            if (!element) { showAlert('PDFに変換するコンテンツが見つかりませんでした。', 'PDFエクスポートエラー'); return; }
+
+            dom.loadingText.textContent = 'PDFを生成しています...';
+            showContent(false);
+
+            const eventTitle = (currentPageData.headerData.title || 'checklist').replace(/[^a-z0-9\u3000-\u30ff\u4e00-\u9faf\uff00-\uffef]/gi, '_');
+            const filename = `${eventTitle}_${formatDate(selectedDate)}_${currentMode}.pdf`;
+
+            const options = {
+                margin: 10, filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, logging: false, dpi: 192, letterRendering: true, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(options).from(element).save().then(() => {
+                dom.importStatus.textContent = `「${filename}」をPDFとしてエクスポートしました。`;
+                setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+                showContent(true);
+            }).catch(error => {
+                console.error('PDFエクスポート中にエラーが発生しました:', error);
+                showAlert(`PDFエクスポート中にエラーが発生しました: ${error.message}`, 'PDFエクスポートエラー');
+                showContent(true);
+            });
+        };
+
+        const handleImportFileSelect = (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            let jsonFileFound = false;
+            let pdfsAttachedCount = 0;
+            let unsupportedFilesCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        if (file.type === 'application/json') {
+                            if (jsonFileFound) {
+                                showAlert('複数のJSONファイルは同時にインポートできません。最初のJSONファイルのみ処理されます。', '警告');
+                                return;
+                            }
+                            const imported = JSON.parse(event.target.result);
+                            if (!imported.headerData || !imported.checklists || typeof imported.forcedSchedules === 'undefined') {
+                                throw new Error("無効なファイル形式です。必要なデータが不足しています。");
+                            }
+                            dataToImport = imported;
+                            showModal(dom.importConfirmModal);
+                            jsonFileFound = true;
+                        } else if (file.type === 'application/pdf') {
+                            const pdfDataUrl = event.target.result;
+                            if (pdfDataUrl.length > 5 * 1024 * 1024) {
+                                showAlert(`添付されたPDFファイル「${file.name}」は5MBを超えています。ローカルストレージの容量制限により、保存できない場合があります。`, 'ファイルサイズ警告');
+                            }
+                            if (!currentPageData.pdfAttachments) {
+                                currentPageData.pdfAttachments = [];
+                            }
+                            currentPageData.pdfAttachments.push({
+                                id: `pdf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                                fileName: file.name,
+                                data: pdfDataUrl
+                            });
+                            pdfsAttachedCount++;
+                            scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                            renderPdfAttachment();
+                        } else {
+                            unsupportedFilesCount++;
+                        }
+                    } catch (error) {
+                        console.error("Import failed for file:", file.name, error);
+                        dom.importStatus.textContent = `「${file.name}」の処理に失敗しました: ${error.message}`;
+                        setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+                    }
+                };
+                if (file.type === 'application/json') {
+                    reader.readAsText(file);
+                } else if (file.type === 'application/pdf') {
+                    reader.readAsDataURL(file);
+                } else {
+                    unsupportedFilesCount++;
+                }
+            }
+            if (pdfsAttachedCount > 0) {
+                dom.importStatus.textContent = `${pdfsAttachedCount}つのPDFを添付しました。`;
+                setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+            }
+            if (unsupportedFilesCount > 0) {
+                showAlert(`${unsupportedFilesCount}つのサポートされていないファイルがスキップされました。JSONまたはPDFファイルを選択してください。`, '警告');
+            }
+            dom.importFileInput.value = '';
+        };
+        
+        const renderPdfAttachment = () => {
+            const container = dom.pdfList;
+            if (!container || !currentPageData) return;
+            if (!currentPageData.pdfAttachments || currentPageData.pdfAttachments.length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-500">PDFが添付されていません。</p>';
+            } else {
+                container.innerHTML = currentPageData.pdfAttachments.map(pdf => `
+                    <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-md shadow-sm">
+                        <span class="text-sm font-semibold text-slate-700 flex-1 flex items-center gap-1">
+                            ${ICONS.File} ${pdf.fileName}
+                        </span>
+                        <button data-pdf-id="${pdf.id}" data-action="open-pdf" class="flex items-center gap-1 px-3 py-1 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-semibold text-xs transition-colors shadow-sm">
+                            ${ICONS.Eye}開く
+                        </button>
+                        <button data-pdf-id="${pdf.id}" data-action="remove-pdf" class="flex items-center gap-1 px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold text-xs transition-colors shadow-sm">
+                            ${ICONS.Trash2}削除
+                        </button>
+                    </div>
+                `).join('');
+            }
+        };
+        
+        const handleOpenPdf = (pdfId) => {
+            const pdf = currentPageData.pdfAttachments.find(p => p.id === pdfId);
+            if (pdf && pdf.data) {
+                try {
+                    const dataUrl = pdf.data;
+                    const parts = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+                    if (!parts || parts.length < 3) { showAlert('PDFデータの形式が無効です。', 'エラー'); return; }
+                    const mimeType = parts[1];
+                    const base64 = parts[2];
+                    const byteCharacters = atob(base64);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                } catch (error) {
+                    console.error('Failed to open PDF:', error);
+                    showAlert('PDFを開く際にエラーが発生しました。', 'エラー');
+                }
+            } else {
+                showAlert('添付されたPDFが見つかりません。', '情報');
+            }
+        };
+
+        const handleRemovePdf = (pdfId) => {
+            if (currentPageData && currentPageData.pdfAttachments) {
+                currentPageData.pdfAttachments = currentPageData.pdfAttachments.filter(p => p.id !== pdfId);
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                renderPdfAttachment();
+                dom.importStatus.textContent = 'PDFを削除しました。';
+                setTimeout(() => { dom.importStatus.textContent = ''; }, 3000);
+            }
+        };
+
+        const handleConfirmCopy = () => {
+            const targetDateValue = dom.copyTargetDate.value;
+            const targetModeButton = dom.copyTargetModeSelector.querySelector('.active');
+
+            if (!targetDateValue) { showAlert('コピー先の日付を選択してください。'); return; }
+            if (!targetModeButton) { showAlert('コピー先のモードを選択してください。'); return; }
+            if (!currentPageData) { showAlert('コピー元のデータが見つかりません。'); hideModal(dom.copyDataModal); return; }
+
+            const targetMode = targetModeButton.dataset.mode;
+            const parts = targetDateValue.split('-').map(Number);
+            const targetDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            const sourceDateStr = formatDate(selectedDate);
+            const targetDateStr = formatDate(targetDate);
+            
+            if (sourceDateStr === targetDateStr && currentMode === targetMode) {
+                showAlert('同じ日付の同じモードにはコピーできません。');
+                return;
+            }
+
+            const targetPageKey = `page_data_${targetDateStr}_${targetMode}`;
+            let targetDayPrograms = [];
+            const storedTargetData = localStorage.getItem(targetPageKey);
+            if (storedTargetData) {
+                try {
+                    const parsed = JSON.parse(storedTargetData);
+                    if (Array.isArray(parsed)) {
+                        targetDayPrograms = parsed;
+                    }
+                } catch (e) {
+                    console.error("Error parsing target day data for copy:", e);
+                }
+            }
+            
+            const programToCopy = JSON.parse(JSON.stringify(currentPageData));
+            programToCopy.programId = `program_${Date.now()}`;
+            programToCopy.headerData.title = `${programToCopy.headerData.title} (コピー)`;
+            
+            Object.values(programToCopy.checklists).forEach(checklist => {
+                if (checklist.rows) {
+                    checklist.rows.forEach(row => {
+                        row.status = createInitialStatus();
+                        const originalPrefix = String(row.id).split('_')[0];
+                        row.id = `copied_${originalPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        row.isGenerated = false;
+                    });
+                }
+            });
+            if (programToCopy.headerData?.subtitle?.operationChecklistItems) {
+                programToCopy.headerData.subtitle.operationChecklistItems.forEach(item => {
+                    item.status = createInitialStatus();
+                    item.id = `copied_op_item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                });
+            }
+            if (programToCopy.forcedSchedules) {
+                programToCopy.forcedSchedules.forEach(schedule => {
+                    schedule.id = `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    schedule.isFinished = false;
+                    schedule.createdAt = new Date().toISOString();
+                    schedule.activePattern = 0;
+                });
+            }
+            if (programToCopy.pdfAttachments) {
+                programToCopy.pdfAttachments.forEach(pdf => {
+                    pdf.id = `pdf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                });
+            }
+
+            targetDayPrograms.push(programToCopy);
+
+            try {
+                localStorage.setItem(targetPageKey, JSON.stringify(targetDayPrograms));
+                hideModal(dom.copyDataModal);
+                
+                selectedDate = targetDate;
+                currentMode = targetMode;
+                currentProgramId = programToCopy.programId; 
+                
+                document.querySelectorAll('#mode-tabs .mode-button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === currentMode));
+                switchPage();
+                
+                dom.importStatus.textContent = `番組を ${formatDate(targetDate, 'long')} の ${targetMode.toUpperCase()} へ正常にコピーしました。`;
+                setTimeout(() => { dom.importStatus.textContent = ''; }, 5000);
+            } catch (error) {
+                console.error("Copy failed:", error);
+                showAlert(`データのコピーに失敗しました: ${error.message}`);
+                hideModal(dom.copyDataModal);
+            }
+        };
+
+        dom.confirmDeleteBtn.addEventListener('click', () => {
+            let dataChanged = false;
+            if (itemToDelete.type === 'table_row') {
+                if (itemToDelete.index !== null && currentPageData) {
+                    const checklist = currentPageData.checklists[currentMainTab];
+                    checklist.rows.splice(itemToDelete.index, 1);
+                    renderTable(checklist);
+                    dataChanged = true;
+                }
+            } else if (itemToDelete.type === 'op_item') {
+                if (itemToDelete.index !== null && currentPageData) {
+                    const operationChecklist = currentPageData.headerData.subtitle.operationChecklistItems;
+                    operationChecklist.splice(itemToDelete.index, 1);
+                    renderHeader(currentPageData.headerData);
+                    dataChanged = true;
+                }
+            }
+            hideModal(dom.deleteModal);
+            if (dataChanged) {
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+            }
+            itemToDelete = { type: null, index: null };
+        });
+
+        dom.confirmImportBtn.addEventListener('click', async () => {
+            if(!dataToImport) return;
+            const programIndex = dayPrograms.findIndex(p => p.programId === currentProgramId);
+            if (programIndex === -1) {
+                showAlert("現在選択中の番組が見つかりません。", "インポートエラー");
+                return;
+            }
+            // Preserve programId and title from the existing program
+            dataToImport.programId = currentProgramId;
+            dataToImport.headerData.title = dayPrograms[programIndex].headerData.title;
+
+            dayPrograms[programIndex] = dataToImport;
+            
+            try {
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                dom.importStatus.textContent = `データを正常にインポートしました。`;
+                hideModal(dom.importConfirmModal);
+                dataToImport = null;
+                loadProgramData();
+            } catch (error) {
+                console.error("Import confirmation failed:", error);
+                showAlert("データのインポートに失敗しました。", "インポートエラー");
+            }
+        });
+
+        dom.confirmDeleteProgramBtn.addEventListener('click', () => {
+            const programIndex = dayPrograms.findIndex(p => p.programId === currentProgramId);
+            if (programIndex > -1) {
+                dayPrograms.splice(programIndex, 1);
+            }
+
+            if (dayPrograms.length === 0) {
+                const defaultProgram = createSamplePageData(selectedDate, currentMode);
+                defaultProgram.programId = `program_${Date.now()}`;
+                defaultProgram.headerData.title = "最初の番組";
+                dayPrograms = [defaultProgram];
+            }
+
+            currentProgramId = dayPrograms[0].programId;
+
+            scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+            
+            hideModal(dom.deleteProgramModal);
+            
+            renderProgramSelector();
+            loadProgramData();
+        });
+
+        const updateCopyModeButton = () => {
+            if (!dom.copyModeBtn) return;
+            const targetMode = currentMode === '2k' ? '4K' : '2K';
+            dom.copyModeBtn.innerHTML = `${ICONS.Copy} ${targetMode}へコピー`;
+        };
+
+        const setupApp = () => {
+            updateCurrentDateDisplay();
+            renderCalendar();
+            document.querySelector('#mode-tabs .mode-button[data-mode="2k"]').classList.add('active');
+            document.querySelector('#main-tabs .tab-button[data-tab="operation"]').classList.add('active');
+            updateCopyModeButton();
+
+            dom.openCalendarBtn.addEventListener('click', () => showCalendar(true));
+            dom.calendarModal.addEventListener('click', (e) => {
+                if (e.target.id === 'calendar-modal') showCalendar(false);
+            });
+            dom.calendarContainer.addEventListener('click', handleCalendarClick);
+            dom.modeTabs.addEventListener('click', handleModeClick);
+            dom.mainTabs.addEventListener('click', handleTabClick);
+            document.getElementById('event-title').addEventListener('focusout', handleTitleEdit);
+            dom.timetableContainer.addEventListener('click', handleHeaderClicks);
+            dom.headerInfo.addEventListener('click', handleHeaderClicks);
+            dom.timetableRows.addEventListener('focusout', handleTimetableEdit);
+            dom.eventDetailsContainer.addEventListener('input', handleDetailsChange);
+            dom.tableContainer.addEventListener('click', handleExtensionTableInteraction);
+            dom.tableContainer.addEventListener('focusout', handleExtensionTableInteraction);
+            
+            document.getElementById('add-standard-finish-btn').addEventListener('click', handleExtensionTableInteraction);
+            document.getElementById('add-early-finish-column-btn').addEventListener('click', handleExtensionTableInteraction);
+            document.getElementById('add-b-program-btn').addEventListener('click', handleExtensionTableInteraction);
+            
+            if (dom.opChecklistSection) {
+                dom.opChecklistSection.addEventListener('click', handleOperationChecklistInteraction);
+                dom.opChecklistSection.addEventListener('change', handleOperationChecklistInteraction);
+                dom.opChecklistSection.addEventListener('focusout', handleOperationChecklistInteraction);
+            }
+            
+            if (dom.opChecklistItems) {
+                dom.opChecklistItems.addEventListener('dragstart', (e) => {
+                    const item = e.target.closest('[draggable="true"]');
+                    if (item) {
+                        draggedItem = item;
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', item.dataset.id);
+                        setTimeout(() => {
+                            item.classList.add('dragging');
+                        }, 0);
+                    }
+                });
+
+                dom.opChecklistItems.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const targetItem = e.target.closest('[draggable="true"]');
+                    if (targetItem && draggedItem && targetItem !== draggedItem) {
+                        if (draggedOverItem && draggedOverItem !== targetItem) {
+                            draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                        }
+                        draggedOverItem = targetItem;
+                        const rect = targetItem.getBoundingClientRect();
+                        const offsetY = e.clientY - rect.top;
+                        if (offsetY < rect.height / 2) {
+                            targetItem.classList.add('drag-over');
+                            targetItem.classList.remove('drag-over-bottom');
+                        } else {
+                            targetItem.classList.add('drag-over-bottom');
+                            targetItem.classList.remove('drag-over');
+                        }
+                    }
+                });
+
+                dom.opChecklistItems.addEventListener('dragleave', (e) => {
+                    if (draggedOverItem) {
+                        draggedOverItem.classList.remove('drag-over', 'drag-over-bottom');
+                        draggedOverItem = null;
+                    }
+                });
+
+                dom.opChecklistItems.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (draggedItem && draggedOverItem && draggedItem !== draggedOverItem) {
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        const targetId = draggedOverItem.dataset.id;
+                        const items = currentPageData.headerData.subtitle.operationChecklistItems;
+
+                        const fromIndex = items.findIndex(item => item.id === draggedId);
+                        let toIndex = items.findIndex(item => item.id === targetId);
+
+                        if (fromIndex === -1 || toIndex === -1) return;
+
+                        const rect = draggedOverItem.getBoundingClientRect();
+                        if ((e.clientY - rect.top) > (rect.height / 2)) {
+                            toIndex++;
+                        }
+                        
+                        const [movedItem] = items.splice(fromIndex, 1);
+                        items.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, movedItem);
+
+                        scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+                        renderHeader(currentPageData.headerData);
+                    }
+                });
+
+                dom.opChecklistItems.addEventListener('dragend', (e) => {
+                    if (draggedItem) {
+                        draggedItem.classList.remove('dragging');
+                    }
+                    document.querySelectorAll('#operation-checklist-items [draggable="true"]').forEach(item => {
+                        item.classList.remove('drag-over', 'drag-over-bottom');
+                    });
+                    draggedItem = null;
+                    draggedOverItem = null;
+                });
+            }
+
+            dom.attachedPdfsContainer.addEventListener('click', (e) => {
+                const target = e.target.closest('[data-action]');
+                if (!target) return;
+                const action = target.dataset.action;
+                const pdfId = target.dataset.pdfId;
+                if (action === 'open-pdf') handleOpenPdf(pdfId);
+                else if (action === 'remove-pdf') handleRemovePdf(pdfId);
+            });
+
+            dom.importBtn.addEventListener('click', () => dom.importFileInput.click());
+            dom.exportBtn.addEventListener('click', handleExportPdf);
+            dom.importFileInput.addEventListener('change', handleImportFileSelect);
+            dom.deleteProgramBtn.addEventListener('click', () => {
+                const programToDelete = dayPrograms.find(p => p.programId === currentProgramId);
+                const title = programToDelete?.headerData?.title || 'この番組';
+                dom.deleteProgramModalMessage.innerHTML = `現在選択している番組 (<span class="font-semibold">${sanitizeText(title)}</span>) を削除します。この操作は元に戻せません。`;
+                showModal(dom.deleteProgramModal);
+            });
+
+            dom.cancelDeleteBtn.addEventListener('click', () => { hideModal(dom.deleteModal); itemToDelete = { type: null, index: null }; });
+            dom.cancelImportBtn.addEventListener('click', () => { hideModal(dom.importConfirmModal); dataToImport = null; });
+            dom.cancelDeleteProgramBtn.addEventListener('click', () => hideModal(dom.deleteProgramModal));
+            dom.alertModal.okBtn.addEventListener('click', () => hideModal(dom.alertModal.modal));
+            
+            dom.copyDataBtn.addEventListener('click', () => {
+                if (!currentPageData) { showAlert('コピー元の番組データがありません。'); return; }
+                const sourceTitle = currentPageData.headerData.title || '無題の番組';
+                dom.copySourceInfo.textContent = `'${sanitizeText(sourceTitle)}' (${formatDate(selectedDate, 'long')} / ${currentMode.toUpperCase()})`;
+                const tomorrow = new Date(selectedDate);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                dom.copyTargetDate.value = formatDate(tomorrow, 'iso');
+                document.querySelectorAll('.copy-target-mode-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.mode === currentMode);
+                });
+                showModal(dom.copyDataModal);
+            });
+            dom.cancelCopyBtn.addEventListener('click', () => hideModal(dom.copyDataModal));
+            dom.confirmCopyBtn.addEventListener('click', handleConfirmCopy);
+            dom.copyTargetModeSelector.addEventListener('click', (e) => {
+                const button = e.target.closest('button.copy-target-mode-btn');
+                if (button) {
+                    document.querySelectorAll('.copy-target-mode-btn').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                }
+            });
+
+            dom.copyModeBtn.addEventListener('click', () => {
+                const sourceMode = currentMode.toUpperCase();
+                const targetMode = (currentMode === '2k' ? '4k' : '2k').toUpperCase();
+                const sourceTitle = currentPageData.headerData.title || '無題の番組';
+                dom.copyModeMessage.textContent = `現在選択中の番組「${sanitizeText(sourceTitle)}」を、同じ日付の ${targetMode} にコピーします。よろしいですか？`;
+                showModal(dom.copyModeModal);
+            });
+            dom.confirmCopyModeBtn.addEventListener('click', () => {
+                const sourceMode = currentMode;
+                const targetMode = sourceMode === '2k' ? '4k' : '2k';
+                const dateStr = formatDate(selectedDate);
+                const targetKey = `page_data_${dateStr}_${targetMode}`;
+                
+                let targetDayPrograms = [];
+                const storedTargetData = localStorage.getItem(targetKey);
+                if (storedTargetData) {
+                    try {
+                        const parsed = JSON.parse(storedTargetData);
+                        if(Array.isArray(parsed)) targetDayPrograms = parsed;
+                    } catch(e) { console.error("Could not parse target data for mode copy", e); }
+                }
+
+                const programToCopy = JSON.parse(JSON.stringify(currentPageData));
+                programToCopy.programId = `program_${Date.now()}`;
+                programToCopy.headerData.title = `${programToCopy.headerData.title} (${sourceMode.toUpperCase()}からコピー)`;
+
+                targetDayPrograms.push(programToCopy);
+                localStorage.setItem(targetKey, JSON.stringify(targetDayPrograms));
+                hideModal(dom.copyModeModal);
+                showAlert(`${sourceMode.toUpperCase()} から ${targetMode.toUpperCase()} へ番組をコピーしました。${targetMode.toUpperCase()}モードに切り替えます。`);
+                
+                currentMode = targetMode;
+                currentProgramId = programToCopy.programId;
+                document.querySelectorAll('#mode-tabs .mode-button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === currentMode));
+                switchPage();
+            });
+            dom.cancelCopyModeBtn.addEventListener('click', () => hideModal(dom.copyModeModal));
+
+            dom.confirmAddProgramBtn.addEventListener('click', () => {
+                const newTitle = dom.newProgramTitleInput.value;
+                const newProgram = createSamplePageData(selectedDate, currentMode);
+                newProgram.programId = `program_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                newProgram.headerData.title = newTitle || `新しい番組 ${dayPrograms.length + 1}`;
+                
+                dayPrograms.push(newProgram);
+                currentProgramId = newProgram.programId;
+
+                scheduleLocalStorageUpdate(`page_data_${formatDate(selectedDate)}_${currentMode}`, dayPrograms);
+
+                hideModal(dom.addProgramModal);
+                renderProgramSelector();
+                loadProgramData();
+            });
+            dom.cancelAddProgramBtn.addEventListener('click', () => hideModal(dom.addProgramModal));
+
+
+            document.getElementById('delete-all-generated-extension-rows-btn').addEventListener('click', () => {
+                showModal(dom.deleteGeneratedRowsModal);
+            });
+            dom.confirmDeleteGeneratedRowsBtn.addEventListener('click', deleteAllGeneratedExtensionRows);
+            dom.cancelDeleteGeneratedRowsBtn.addEventListener('click', () => hideModal(dom.deleteGeneratedRowsModal));
+
+            if (!countdownInterval) {
+                countdownInterval = setInterval(updateCountdowns, 1000);
+            }
+        };
+
+        const renderProgramSelector = () => {
+            const container = dom.programSelectorContainer;
+            if (!container) return;
+
+            container.innerHTML = `
+                <label for="program-select" class="font-semibold text-slate-700 whitespace-nowrap">番組:</label>
+                <select id="program-select" class="flex-grow p-2 border border-slate-300 rounded-lg bg-white shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-0">
+                    ${dayPrograms.map(p => `<option value="${p.programId}" ${p.programId === currentProgramId ? 'selected' : ''}>${sanitizeText(p.headerData.title) || '無題の番組'}</option>`).join('')}
+                </select>
+                <button id="add-program-btn" class="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm transition-colors shadow-sm whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    新規番組
+                </button>
+            `;
+
+            document.getElementById('program-select').addEventListener('change', (e) => {
+                currentProgramId = e.target.value;
+                currentMainTab = 'operation'; // Reset to operation tab on program switch
+                loadProgramData();
+            });
+
+            document.getElementById('add-program-btn').addEventListener('click', () => {
+                dom.newProgramTitleInput.value = `新しい番組 ${dayPrograms.length + 1}`;
+                showModal(dom.addProgramModal);
+            });
+        };
+
+        const loadProgramData = () => {
+            showContent(false);
+            
+            currentPageData = dayPrograms.find(p => p.programId === currentProgramId);
+
+            if (!currentPageData) {
+                console.error("Selected program not found!", currentProgramId, dayPrograms);
+                showAlert("選択された番組データが見つかりません。");
+                currentProgramId = dayPrograms.length > 0 ? dayPrograms[0].programId : null;
+                currentPageData = dayPrograms.length > 0 ? dayPrograms[0] : null;
+                renderProgramSelector(); 
+            }
+            
+            if(!currentPageData) {
+                dom.loadingText.textContent = '番組データがありません。';
+                dom.mainContent.style.visibility = 'hidden';
+                showContent(true);
+                return;
+            }
+
+            dom.loadingText.textContent = `番組「${sanitizeText(currentPageData.headerData.title)}」を読み込んでいます...`;
+            console.log("Loading program:", currentPageData.headerData.title, `(ID: ${currentProgramId})`);
+            
+            renderContent();
+            dom.mainContent.style.visibility = 'visible';
+            showContent(true);
+        };
+
+        const switchPage = () => {
+            currentMainTab = 'operation';
+
+            updateCurrentDateDisplay();
+            renderCalendar();
+            updateCopyModeButton();
+            showContent(false);
+            const localStorageKey = `page_data_${formatDate(selectedDate)}_${currentMode}`;
+            dom.loadingText.textContent = `[${formatDate(selectedDate, 'long')} / ${currentMode.toUpperCase()}] のデータを読み込んでいます...`;
+
+            try {
+                const storedData = localStorage.getItem(localStorageKey);
+                let programList = [];
+
+                if (storedData) {
+                    let parsedData = JSON.parse(storedData);
+                    if (!Array.isArray(parsedData)) {
+                        console.log("Old data format detected. Migrating...");
+                        const program = parsedData;
+                        program.programId = `program_${Date.now()}`;
+                        if (!program.headerData.title) {
+                            program.headerData.title = "デフォルト番組";
+                        }
+                        programList = [program];
+                        localStorage.setItem(localStorageKey, JSON.stringify(programList));
+                    } else {
+                        programList = parsedData;
+                    }
+                }
+
+                programList.forEach((prog, index) => {
+                    if (!prog.programId) prog.programId = `program_${Date.now()}_${index}`;
+                    if (!prog.headerData) prog.headerData = createSampleHeaderData().headerData;
+                    if (!prog.headerData.title) prog.headerData.title = `無題の番組 ${index + 1}`;
+                });
+
+                if (programList.length === 0) {
+                    const defaultProgram = createSamplePageData(selectedDate, currentMode);
+                    defaultProgram.programId = `program_${Date.now()}`;
+                    defaultProgram.headerData.title = "最初の番組";
+                    programList = [defaultProgram];
+                    localStorage.setItem(localStorageKey, JSON.stringify(programList));
+                }
+
+                dayPrograms = programList;
+
+                if (!currentProgramId || !dayPrograms.find(p => p.programId === currentProgramId)) {
+                    currentProgramId = dayPrograms[0].programId;
+                }
+
+                renderProgramSelector();
+                loadProgramData();
+
+            } catch (error) {
+                console.error("switchPage: Error managing page data in Local Storage:", error);
+                showAlert("ページのデータを読み込めませんでした。", "エラー");
+                dom.mainContent.style.visibility = 'visible';
+                showContent(true);
+            }
+        };
+
+        // --- App Initialization ---
+        setupApp();
+        switchPage();
+
+    </script>
+</body>
+</html>
